@@ -1,9 +1,12 @@
+import { ChevronsRight } from 'lucide-react';
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SessionList } from '@/features/session-list/components/SessionList';
+import { useSessionListStore } from '@/features/session-list/store/sessionListStore';
 import { SessionDetails } from '@/features/session-tree/components/SessionDetails';
 import { SessionTree } from '@/features/session-tree/components/SessionTree';
 import { useSessionStore, type SessionView } from '@/features/session-tree/store/sessionStore';
@@ -18,6 +21,8 @@ function App() {
     const setView = useSessionStore((state) => state.setView);
     const error = useSessionStore((state) => state.error);
     const root = useSessionStore((state) => state.root);
+    const isListCollapsed = useSessionListStore((state) => state.isCollapsed);
+    const setListCollapsed = useSessionListStore((state) => state.setCollapsed);
 
     useEffect(() => {
         // Deep link: ?file=<session .jsonl>&view=timeline
@@ -33,9 +38,17 @@ function App() {
 
     return (
         <div className="flex h-full">
-            <aside className="w-80 shrink-0 border-r bg-sidebar text-sidebar-foreground">
-                <SessionList />
-            </aside>
+            {isListCollapsed ? (
+                <aside className="flex w-12 shrink-0 flex-col items-center border-r bg-sidebar py-2.5">
+                    <Button variant="ghost" size="icon-sm" aria-label="Mostrar sessões" title="Mostrar sessões" onClick={() => setListCollapsed(false)}>
+                        <ChevronsRight />
+                    </Button>
+                </aside>
+            ) : (
+                <aside className="w-80 shrink-0 border-r bg-sidebar text-sidebar-foreground">
+                    <SessionList />
+                </aside>
+            )}
             <div className="flex min-w-0 flex-1 flex-col">
                 <header className="flex items-center gap-3 border-b px-3 py-2">
                     <div className="min-w-0 flex-1">

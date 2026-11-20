@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react';
+import { ChevronsLeft, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export function SessionList() {
     const isLoading = useSessionListStore((state) => state.isLoading);
     const refresh = useSessionListStore((state) => state.refresh);
     const setFilters = useSessionListStore((state) => state.setFilters);
+    const setCollapsed = useSessionListStore((state) => state.setCollapsed);
     const openFile = useSessionStore((state) => state.load);
     const openedFile = useSessionStore((state) => state.root?.file);
 
@@ -45,9 +46,14 @@ export function SessionList() {
                     <h2 className="text-sm font-semibold">
                         Sessões <span className="font-normal text-muted-foreground">{visible.length}</span>
                     </h2>
-                    <Button variant="ghost" size="icon-sm" aria-label="Atualizar" onClick={() => void refresh()}>
-                        <RefreshCw className={cn(isLoading && 'animate-spin')} />
-                    </Button>
+                    <div className="flex items-center">
+                        <Button variant="ghost" size="icon-sm" aria-label="Atualizar lista" title="Atualizar lista" onClick={() => void refresh()}>
+                            <RefreshCw className={cn(isLoading && 'animate-spin')} />
+                        </Button>
+                        <Button variant="ghost" size="icon-sm" aria-label="Recolher sessões" title="Recolher sessões" onClick={() => setCollapsed(true)}>
+                            <ChevronsLeft />
+                        </Button>
+                    </div>
                 </div>
                 <Select value={filters.source} onValueChange={(value) => setFilters({ source: value as SessionFilters['source'] })}>
                     <SelectTrigger size="sm" className="w-full">

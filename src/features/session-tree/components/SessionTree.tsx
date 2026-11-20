@@ -117,7 +117,7 @@ export function SessionTree() {
 
     return (
         <div ref={containerRef} className="h-full w-full overflow-hidden" style={{ background: palette.background }}>
-            {!root && <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Escolha uma sessão na lista para ver os agentes.</p>}
+            {!root && <p className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">Escolha uma sessão na lista para ver os agentes.</p>}
             {root && size.width > 0 && (
                 <Stage key={fontsReady ? 'fonts' : 'fallback'} width={size.width} height={size.height} draggable onWheel={handleWheel} x={48} y={48}>
                     <Layer>
