@@ -19,3 +19,9 @@ test('tags skills invoked, injected, read and run', () => {
         use: 'script',
     });
 });
+
+test('tags delegations and messages between agents', () => {
+    expect(tagEvent({ at: null, kind: 'spawn', name: 'spawn_agent', agent: 'demo-julgamento' }).agent).toEqual({ direction: 'delegated', peer: 'demo-julgamento' });
+    expect(tagEvent({ at: null, kind: 'action', name: 'send_message', text: 'target=implementar' }).agent).toEqual({ direction: 'sent', peer: 'implementar' });
+    expect(tagEvent({ at: null, kind: 'agent-message', from: '/root', to: '/root/implementar' }).agent).toEqual({ direction: 'received', peer: '/root' });
+});

@@ -143,6 +143,7 @@ export async function loadCodexSession(file: string): Promise<Session> {
         parentId: meta.parent_thread_id ?? spawn.parent_thread_id ?? null,
         role: meta.agent_role ?? spawn.agent_role ?? 'líder',
         nickname: meta.agent_nickname ?? spawn.agent_nickname ?? null,
+        agentPath: meta.agent_path ?? spawn.agent_path ?? '/root',
         cwd: meta.cwd ?? null,
     });
     const context: ParseContext = { pendingCalls: new Map(), processAliases: new Map() };

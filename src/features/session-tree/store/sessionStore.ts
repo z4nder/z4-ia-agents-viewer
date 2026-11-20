@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { Segment } from '../../../../server/analysis';
 import type { Session } from '../../../../server/model';
 
-export type SessionView = 'tree' | 'timeline' | 'activity';
+export type SessionView = 'tree' | 'timeline' | 'flow' | 'activity';
 
 interface SessionState {
     root: Session | null;

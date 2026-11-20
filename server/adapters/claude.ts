@@ -13,6 +13,8 @@ import { readJsonl } from '../jsonl';
 import { finishSession, newSession, trackTimestamp, type Session, type SessionEvent, type Tokens } from '../model';
 
 const SPAWN_TOOLS = new Set(['Agent', 'Task']);
+/** Text of the synthetic message recorded when a background subagent finishes. */
+export const RETURN_MESSAGE = 'terminou';
 /** Calls that only wait: reading a background task's output, or a bare `sleep`. */
 const POLL_TOOLS = new Set(['BashOutput', 'TaskOutput']);
 const BARE_SLEEP_PATTERN = /^\s*sleep\s+[\d.]+\s*$/;
@@ -150,6 +152,8 @@ async function loadClaudeFile(file: string, fields: Partial<Session>): Promise<L
             const notification = parseTaskNotification(text);
             if (notification) {
                 notifications.push(notification);
+                // The subagent handing its result back: a message from the child to this session.
+                session.events.push({ at, kind: 'agent-message', from: notification.agentId, to: session.id, text: RETURN_MESSAGE });
             } else if (text) {
                 session.events.push({ at, kind: text.startsWith('<') ? 'context' : 'user', text });
             }

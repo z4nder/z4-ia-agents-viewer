@@ -71,6 +71,8 @@ export interface Session {
     parentId: string | null;
     role: string;
     nickname: string | null;
+    /** Codex agent address used in messages (/root, /root/implementar); null for Claude. */
+    agentPath: string | null;
     cwd: string | null;
     model: string | null;
     effort: string | null;
@@ -117,6 +119,7 @@ export function newSession(fields: Pick<Session, 'id' | 'tool' | 'file'> & Parti
         parentId: null,
         role: 'líder',
         nickname: null,
+        agentPath: null,
         cwd: null,
         model: null,
         effort: null,

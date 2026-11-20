@@ -20,10 +20,22 @@ export interface SkillTag {
     use: SkillUse;
 }
 
+export type AgentDirection = 'delegated' | 'sent' | 'received';
+
+/** Talking to another agent. `peer` is an agent type (delegated) or address/name (messages). */
+export interface AgentTag {
+    direction: AgentDirection;
+    peer: string | null;
+}
+
 export interface EventTags {
     mcp?: McpTag;
     skill?: SkillTag;
+    agent?: AgentTag;
 }
+
+const SEND_TOOLS = new Set(['send_message', 'SendMessage']);
+const TARGET_PATTERN = /\b(?:target|to|recipient)=(\S+)/;
 
 const CLAUDE_MCP_PATTERN = /^mcp__(.+?)__(.+)$/;
 const CODEX_MCP_PATTERN = /^([a-z0-9-]+)__([a-z0-9_]+)$/i;
@@ -52,6 +64,16 @@ function skillFromCommands(commands: string[]): SkillTag | undefined {
 }
 
 export function tagEvent(event: SessionEvent): EventTags {
+    if (event.kind === 'spawn') {
+        return { agent: { direction: 'delegated', peer: event.agent ?? null } };
+    }
+    if (event.kind === 'agent-message') {
+        return { agent: { direction: 'received', peer: event.from ?? null } };
+    }
+    if (event.name && SEND_TOOLS.has(event.name)) {
+        const target = event.text?.match(TARGET_PATTERN)?.[1] ?? event.commands?.[0] ?? null;
+        return { agent: { direction: 'sent', peer: target } };
+    }
     if (event.kind === 'context') {
         const injected = event.text?.match(INJECTED_SKILL_PATTERN)?.[1];
         return injected ? { skill: { name: injected.trim(), use: 'carregada' } } : {};

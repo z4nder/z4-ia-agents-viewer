@@ -22,7 +22,11 @@ export interface ActivityItem {
     childId?: string;
     polls?: number;
     tags?: EventTags;
+    /** waiting: at least one of the merged polls waited for another agent. */
+    waitsForAgent?: boolean;
 }
+
+const WAIT_FOR_AGENT = new Set(['wait_agent', 'TaskOutput']);
 
 export interface ActivitySummary {
     /** What the agent was asked: the user prompt for the leader, the parent's task for a subagent. */
@@ -80,11 +84,17 @@ export function buildActivity(session: Session): ActivityItem[] {
             if (waiting) {
                 waiting.polls = (waiting.polls ?? 1) + 1;
                 waiting.seconds = Math.round((end - (waiting.at ?? end)) / 1000);
+                if (event.name && WAIT_FOR_AGENT.has(event.name)) {
+                    waiting.waitsForAgent = true;
+                }
                 if (event.name && !waiting.detail?.includes(event.name)) {
                     waiting.detail = `${waiting.detail}, ${event.name}`;
                 }
             } else {
                 waiting = { id, kind: 'waiting', at, title: 'Esperando', detail: event.name ?? '', polls: 1, seconds: event.seconds ?? 0 };
+                if (event.name && WAIT_FOR_AGENT.has(event.name)) {
+                    waiting.waitsForAgent = true;
+                }
                 items.push(waiting);
             }
             return;
@@ -111,10 +121,10 @@ export function buildActivity(session: Session): ActivityItem[] {
                 items.push({ id, kind: 'tool', at, title: toolTitle(event), detail: event.commands?.join('\n\n') ?? event.text, output: event.output, ok: event.ok, seconds: event.seconds, tags: tagEvent(event) });
                 break;
             case 'spawn':
-                items.push({ id, kind: 'spawn', at, title: `Delegou para ${event.agent ?? 'um subagente'}`, detail: event.task, childId: event.childId, ok: event.ok });
+                items.push({ id, kind: 'spawn', at, title: `Delegou para ${event.agent ?? 'um subagente'}`, detail: event.task, childId: event.childId, ok: event.ok, tags: tagEvent(event) });
                 break;
             case 'agent-message':
-                items.push({ id, kind: 'message', at, title: `Mensagem de ${event.from ?? '?'} para ${event.to ?? '?'}` });
+                items.push({ id, kind: 'message', at, title: `Mensagem de ${event.from ?? '?'} para ${event.to ?? '?'}`, detail: event.text, tags: tagEvent(event) });
                 break;
         }
     });

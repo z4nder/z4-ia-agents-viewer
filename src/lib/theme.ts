@@ -87,6 +87,8 @@ export const canvasPalettes = {
         statusRunning: '#2563eb',
         shadowOpacity: 0.06,
         waitingOpacity: 0.3,
+        agent: '#059669',
+        message: '#2563eb',
     },
     dark: {
         background: '#0a0a0a',
@@ -112,6 +114,8 @@ export const canvasPalettes = {
         statusRunning: '#60a5fa',
         shadowOpacity: 0,
         waitingOpacity: 0.5,
+        agent: '#34d399',
+        message: '#60a5fa',
     },
 } as const;
 
