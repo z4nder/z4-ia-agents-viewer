@@ -7,15 +7,18 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { findSession, useSessionStore } from '@/features/session-tree/store/sessionStore';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { SKILL_USE_LABELS } from '../../../../server/classify';
 import { buildActivity, summarizeActivity, type ActivityItem, type ActivityKind } from '../../../../server/activity';
 import type { Session } from '../../../../server/model';
 
-type Filter = 'all' | 'messages' | 'commands' | 'failures' | 'context';
+type Filter = 'all' | 'messages' | 'commands' | 'mcp' | 'skills' | 'failures' | 'context';
 
 const FILTERS: [Filter, string][] = [
     ['all', 'Tudo'],
     ['messages', 'Mensagens'],
     ['commands', 'Comandos'],
+    ['mcp', 'MCP'],
+    ['skills', 'Skills'],
     ['failures', 'Falhas'],
     ['context', 'Contexto'],
 ];
@@ -33,11 +36,15 @@ const ICONS: Record<ActivityKind, LucideIcon> = {
 function matches(item: ActivityItem, filter: Filter): boolean {
     switch (filter) {
         case 'all':
-            return item.kind !== 'context';
+            return item.kind !== 'context' || Boolean(item.tags?.skill);
         case 'messages':
             return item.kind === 'prompt' || item.kind === 'reply' || item.kind === 'spawn' || item.kind === 'message';
         case 'commands':
             return item.kind === 'tool';
+        case 'mcp':
+            return Boolean(item.tags?.mcp);
+        case 'skills':
+            return Boolean(item.tags?.skill);
         case 'failures':
             return item.ok === false;
         case 'context':
@@ -97,10 +104,21 @@ function ActivityRow({ item, startedAt, onOpenChild }: { item: ActivityItem; sta
             <button className={cn('flex w-full items-start gap-3 px-4 py-2.5 text-left', canExpand && 'hover:bg-accent/60')} onClick={() => canExpand && setIsOpen(!isOpen)} aria-expanded={isOpen}>
                 <span className="w-14 shrink-0 pt-0.5 text-right text-xs text-muted-foreground tabular-nums">{item.at ? formatClock(item.at - startedAt) : ''}</span>
                 <Icon className={cn('mt-0.5 size-4 shrink-0 text-muted-foreground', item.kind === 'waiting' && 'text-amber-500', item.ok === false && 'text-destructive')} />
-                <span className={cn('min-w-0 flex-1 text-sm', item.kind === 'tool' && 'font-mono text-xs leading-5', item.kind === 'context' && 'text-muted-foreground', !isOpen && 'line-clamp-2')}>
+                <span className={cn('min-w-0 flex-1 text-sm', item.kind === 'tool' && 'font-mono text-xs leading-5', item.kind === 'context' && !item.tags?.skill && 'text-muted-foreground', !isOpen && 'line-clamp-2')}>
                     {item.kind === 'waiting' ? `Esperando ${formatDuration((item.seconds ?? 0) * 1000)} em ${item.polls === 1 ? '1 consulta' : `${item.polls} consultas`} (${item.detail})` : item.title}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
+                    {item.tags?.mcp && (
+                        <Badge variant="secondary" className="border-0 bg-sky-500/15 text-sky-700 dark:text-sky-300" title={`Ferramenta ${item.tags.mcp.tool} do servidor MCP ${item.tags.mcp.server}`}>
+                            MCP {item.tags.mcp.server}
+                        </Badge>
+                    )}
+                    {item.tags?.skill && (
+                        <Badge variant="secondary" className="border-0 bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300" title={`${SKILL_USE_LABELS[item.tags.skill.use]} a skill ${item.tags.skill.name}`}>
+                            {item.tags.skill.name}
+                            <span className="opacity-70">{SKILL_USE_LABELS[item.tags.skill.use]}</span>
+                        </Badge>
+                    )}
                     {item.kind === 'tool' && item.seconds !== undefined && item.seconds >= 1 && <span className="text-xs text-muted-foreground tabular-nums">{formatDuration(item.seconds * 1000)}</span>}
                     {item.ok === false && <Badge variant="destructive">falhou</Badge>}
                     {canExpand && (isOpen ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />)}
@@ -140,7 +158,11 @@ export function ActivityFeed() {
     const visible = activity.filter((item) => matches(item, filter));
     const startedAt = session.startedAt ? Date.parse(session.startedAt) : 0;
     const agents = flatten(root);
-    const failures = activity.filter((item) => item.ok === false).length;
+    const counts: Partial<Record<Filter, number>> = {
+        mcp: activity.filter((item) => item.tags?.mcp).length,
+        skills: activity.filter((item) => item.tags?.skill).length,
+        failures: activity.filter((item) => item.ok === false).length,
+    };
 
     return (
         <div className="flex h-full flex-col">
@@ -162,7 +184,9 @@ export function ActivityFeed() {
                         {FILTERS.map(([value, label]) => (
                             <ToggleGroupItem key={value} value={value}>
                                 {label}
-                                {value === 'failures' && failures > 0 && <span className="text-destructive tabular-nums">{failures}</span>}
+                                {counts[value] !== undefined && (
+                                    <span className={cn('tabular-nums', value === 'failures' && counts[value] ? 'text-destructive' : 'text-muted-foreground')}>{counts[value]}</span>
+                                )}
                             </ToggleGroupItem>
                         ))}
                     </ToggleGroup>

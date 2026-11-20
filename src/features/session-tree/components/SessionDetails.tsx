@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatDuration, formatTokens } from '@/lib/format';
 import { TOOL_BADGE_CLASSES, TOOL_LABELS } from '@/lib/toolColors';
 import { cn } from '@/lib/utils';
+import { SKILL_USE_LABELS, tagEvent, type SkillUse } from '../../../../server/classify';
 import { buildLane, type ProcessResult, type Segment } from '../../../../server/analysis';
 import type { Session } from '../../../../server/model';
 import { findSession, useSessionStore } from '../store/sessionStore';
@@ -79,6 +80,63 @@ function TokenBreakdown({ session }: { session: Session }) {
     );
 }
 
+interface Usage {
+    name: string;
+    count: number;
+    details: string[];
+}
+
+/** Skills by name (with how they were used) and MCP servers (with the tools called). */
+function collectUsage(session: Session): { skills: Usage[]; mcp: Usage[] } {
+    const skills = new Map<string, { count: number; uses: Set<SkillUse> }>();
+    const servers = new Map<string, { count: number; tools: Set<string> }>();
+    for (const event of session.events) {
+        const tags = tagEvent(event);
+        if (tags.skill) {
+            const entry = skills.get(tags.skill.name) ?? { count: 0, uses: new Set() };
+            entry.count += 1;
+            entry.uses.add(tags.skill.use);
+            skills.set(tags.skill.name, entry);
+        }
+        if (tags.mcp) {
+            const entry = servers.get(tags.mcp.server) ?? { count: 0, tools: new Set() };
+            entry.count += 1;
+            entry.tools.add(tags.mcp.tool);
+            servers.set(tags.mcp.server, entry);
+        }
+    }
+    const byCount = (a: Usage, b: Usage) => b.count - a.count;
+    return {
+        skills: [...skills].map(([name, entry]) => ({ name, count: entry.count, details: [...entry.uses].map((use) => SKILL_USE_LABELS[use]) })).sort(byCount),
+        mcp: [...servers].map(([name, entry]) => ({ name, count: entry.count, details: [...entry.tools] })).sort(byCount),
+    };
+}
+
+function UsageList({ title, items, dotClass }: { title: string; items: Usage[]; dotClass: string }) {
+    if (items.length === 0) {
+        return null;
+    }
+    return (
+        <div className="space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">{title}</div>
+            <ul className="space-y-2">
+                {items.map((item) => (
+                    <li key={item.name}>
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                            <span className="flex min-w-0 items-center gap-2">
+                                <span className={cn('size-2 shrink-0 rounded-full', dotClass)} />
+                                <span className="truncate">{item.name}</span>
+                            </span>
+                            <span className="font-medium tabular-nums">{item.count}</span>
+                        </div>
+                        <p className="truncate pl-4 text-xs text-muted-foreground">{item.details.join(', ')}</p>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
 /** Side panel for the selected agent. */
 export function SessionDetails() {
     const session = useSessionStore((state) => findSession(state.root, state.selectedId));
@@ -99,6 +157,7 @@ export function SessionDetails() {
     }
     const tools = [...toolCounts].sort((a, b) => b[1] - a[1]);
     const mostUsed = tools[0]?.[1] ?? 1;
+    const usage = collectUsage(session);
     const longProcesses = lane.segments.filter((segment) => segment.kind === 'process').sort((a, b) => b.end - b.start - (a.end - a.start));
 
     return (
@@ -165,6 +224,16 @@ export function SessionDetails() {
                                 </li>
                             ))}
                         </ul>
+                    </Section>
+                </>
+            )}
+
+            {(usage.skills.length > 0 || usage.mcp.length > 0) && (
+                <>
+                    <Separator />
+                    <Section title="MCP e skills">
+                        <UsageList title="Skills" items={usage.skills} dotClass="bg-fuchsia-500" />
+                        <UsageList title="Servidores MCP" items={usage.mcp} dotClass="bg-sky-500" />
                     </Section>
                 </>
             )}

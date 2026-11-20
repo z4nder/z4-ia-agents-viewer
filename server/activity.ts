@@ -3,6 +3,7 @@
  * Consecutive polls collapse into one "waiting" item. Pure functions shared with the web.
  */
 
+import { tagEvent, type EventTags } from './classify';
 import type { Session, SessionEvent } from './model';
 
 export type ActivityKind = 'prompt' | 'context' | 'reply' | 'tool' | 'spawn' | 'waiting' | 'message';
@@ -20,6 +21,7 @@ export interface ActivityItem {
     /** spawn: the child session it created. waiting: how many polls were merged. */
     childId?: string;
     polls?: number;
+    tags?: EventTags;
 }
 
 export interface ActivitySummary {
@@ -50,6 +52,9 @@ function toolTitle(event: SessionEvent): string {
     const patch = commands[0]?.includes('*** Begin Patch') ? patchTitle(commands[0]) : null;
     if (patch) {
         return `Patch: ${patch}`;
+    }
+    if (event.name === 'Skill') {
+        return `Skill ${commands[0] ?? '?'}`;
     }
     const command = commands[0];
     if (command && !command.startsWith('const ')) {
@@ -92,15 +97,18 @@ export function buildActivity(session: Session): ActivityItem[] {
             case 'user':
                 items.push({ id, kind: 'prompt', at, title: firstLine(event.text ?? ''), detail: event.text });
                 break;
-            case 'context':
-                items.push({ id, kind: 'context', at, title: firstLine(event.text ?? '', 90), detail: event.text });
+            case 'context': {
+                const tags = tagEvent(event);
+                const title = tags.skill ? `Carregou a skill ${tags.skill.name}` : firstLine(event.text ?? '', 90);
+                items.push({ id, kind: 'context', at, title, detail: event.text, tags });
                 break;
+            }
             case 'reply':
                 items.push({ id, kind: 'reply', at, title: firstLine(event.text ?? '', 220), detail: event.text });
                 break;
             case 'tool':
             case 'action':
-                items.push({ id, kind: 'tool', at, title: toolTitle(event), detail: event.commands?.join('\n\n') ?? event.text, output: event.output, ok: event.ok, seconds: event.seconds });
+                items.push({ id, kind: 'tool', at, title: toolTitle(event), detail: event.commands?.join('\n\n') ?? event.text, output: event.output, ok: event.ok, seconds: event.seconds, tags: tagEvent(event) });
                 break;
             case 'spawn':
                 items.push({ id, kind: 'spawn', at, title: `Delegou para ${event.agent ?? 'um subagente'}`, detail: event.task, childId: event.childId, ok: event.ok });
