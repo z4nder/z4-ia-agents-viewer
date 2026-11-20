@@ -56,7 +56,7 @@ function eventEnd(event: SessionEvent, start: number): number {
     return start + (event.seconds ?? 0) * 1000;
 }
 
-function callsBetween(session: Session, start: number, end: number): { calls: number; tokens: number } {
+export function callsBetween(session: Session, start: number, end: number): { calls: number; tokens: number } {
     let calls = 0;
     let tokens = 0;
     for (const call of session.calls) {

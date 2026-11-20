@@ -37,8 +37,9 @@ export function Timeline() {
     const [width, setWidth] = useState(0);
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
-    const selectedSegment = useSessionStore((state) => state.selectedSegment);
+    const selectedSegment = useSessionStore((state) => (state.selection?.type === 'segment' ? state.selection.segment : null));
     const select = useSessionStore((state) => state.select);
+    const selectAgent = useSessionStore((state) => state.selectAgent);
     const palette = useCanvasPalette();
     const fontsReady = useFontsReady();
     const timeline = useMemo(() => (root ? buildTimeline(root) : null), [root]);
@@ -167,7 +168,7 @@ export function Timeline() {
                                                         fill={palette.waiting}
                                                         opacity={segment === selectedSegment ? 0.85 : palette.waitingOpacity}
                                                         cornerRadius={4}
-                                                        onClick={() => select(lane.sessionId, segment)}
+                                                        onClick={() => select({ type: 'segment', sessionId: lane.sessionId, segment })}
                                                     />
                                                 ))}
                                             {lane.segments
@@ -181,7 +182,7 @@ export function Timeline() {
                                                         height={12}
                                                         fill={segment.ok === false ? palette.failed : palette.tool}
                                                         opacity={segment === selectedSegment ? 1 : 0.7}
-                                                        onClick={() => select(lane.sessionId, segment)}
+                                                        onClick={() => select({ type: 'segment', sessionId: lane.sessionId, segment })}
                                                     />
                                                 ))}
                                             {lane.segments
@@ -197,7 +198,7 @@ export function Timeline() {
                                                         fill={processColor(segment.result, palette)}
                                                         stroke={segment === selectedSegment ? palette.borderStrong : undefined}
                                                         cornerRadius={3}
-                                                        onClick={() => select(lane.sessionId, segment)}
+                                                        onClick={() => select({ type: 'segment', sessionId: lane.sessionId, segment })}
                                                     />
                                                 ))}
                                             {lane.callTimes.map((time, callIndex) => (
@@ -215,7 +216,7 @@ export function Timeline() {
                                 const waitingShare = lane.end > lane.start ? Math.round((lane.stats.waitingMs / (lane.end - lane.start)) * 100) : 0;
                                 const isSelected = lane.sessionId === selectedId;
                                 return (
-                                    <Group key={`label-${lane.sessionId}`} y={top} onClick={() => select(lane.sessionId)}>
+                                    <Group key={`label-${lane.sessionId}`} y={top} onClick={() => selectAgent(lane.sessionId)}>
                                         <Rect width={LABEL_WIDTH} height={ROW_HEIGHT} fill="transparent" />
                                         <Text {...text} x={indent} y={10} width={LABEL_WIDTH - indent - 12} text={lane.label} fontSize={13} fontStyle={isSelected ? '600' : '500'} fill={palette.text} ellipsis wrap="none" />
                                         <Text {...text} x={indent} y={30} text={`${formatTokens(lane.stats.tokens)} tokens`} fontSize={11} fill={palette.mutedText} />

@@ -1,4 +1,4 @@
-import { ChevronsLeft, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,6 @@ export function SessionList() {
     const isLoading = useSessionListStore((state) => state.isLoading);
     const refresh = useSessionListStore((state) => state.refresh);
     const setFilters = useSessionListStore((state) => state.setFilters);
-    const setCollapsed = useSessionListStore((state) => state.setCollapsed);
     const openFile = useSessionStore((state) => state.load);
     const openedFile = useSessionStore((state) => state.root?.file);
 
@@ -40,20 +39,13 @@ export function SessionList() {
     const visible = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
 
     return (
-        <div className="flex h-full flex-col">
+        <div className="flex flex-col">
             <div className="space-y-2 border-b p-3">
                 <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-semibold">
-                        Sessões <span className="font-normal text-muted-foreground">{visible.length}</span>
-                    </h2>
-                    <div className="flex items-center">
-                        <Button variant="ghost" size="icon-sm" aria-label="Atualizar lista" title="Atualizar lista" onClick={() => void refresh()}>
-                            <RefreshCw className={cn(isLoading && 'animate-spin')} />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" aria-label="Recolher sessões" title="Recolher sessões" onClick={() => setCollapsed(true)}>
-                            <ChevronsLeft />
-                        </Button>
-                    </div>
+                    <span className="text-xs text-muted-foreground">{visible.length === 1 ? '1 sessão' : `${visible.length} sessões`}</span>
+                    <Button variant="ghost" size="icon-sm" aria-label="Atualizar lista" title="Atualizar lista" onClick={() => void refresh()}>
+                        <RefreshCw className={cn(isLoading && 'animate-spin')} />
+                    </Button>
                 </div>
                 <Select value={filters.source} onValueChange={(value) => setFilters({ source: value as SessionFilters['source'] })}>
                     <SelectTrigger size="sm" className="w-full">
@@ -85,7 +77,7 @@ export function SessionList() {
                     <Input type="date" className="h-8 text-xs" value={filters.to} onChange={(event) => setFilters({ to: event.target.value })} aria-label="Até" />
                 </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div>
                 <ul>
                     {visible.map((session) => (
                         <li key={session.file}>

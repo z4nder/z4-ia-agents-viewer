@@ -40,6 +40,8 @@ export function FlowView() {
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
     const select = useSessionStore((state) => state.select);
+    const selectAgent = useSessionStore((state) => state.selectAgent);
+    const selectedBlockId = useSessionStore((state) => (state.selection?.type === 'block' ? state.selection.block.id : null));
     const setView = useSessionStore((state) => state.setView);
     const palette = useCanvasPalette();
     const fontsReady = useFontsReady();
@@ -68,7 +70,7 @@ export function FlowView() {
     const text = { fontFamily: CANVAS_FONT, listening: false } as const;
     const columnX = (index: number) => SIDE_PADDING + index * (COLUMN_WIDTH + COLUMN_GAP);
     const openActivity = (sessionId: string) => {
-        select(sessionId);
+        selectAgent(sessionId);
         setView('activity');
     };
 
@@ -80,7 +82,7 @@ export function FlowView() {
                         key={session.id}
                         className="flex shrink-0 items-center gap-2 py-3 text-left"
                         style={{ width: COLUMN_WIDTH }}
-                        onClick={() => select(session.id)}
+                        onClick={() => selectAgent(session.id)}
                         onDoubleClick={() => openActivity(session.id)}
                     >
                         <span className="size-2 shrink-0 rounded-full" style={{ background: palette[session.tool] }} />
@@ -104,13 +106,13 @@ export function FlowView() {
                         return <Line key={`life-${session.id}`} points={[x, first.y, x, last.y + last.height]} stroke={palette.border} strokeWidth={1.5} dash={[4, 6]} listening={false} />;
                     })}
                     {[...layout.placed.values()].map(({ block, x, y, height }) => {
-                        const isSelected = block.sessionId === selectedId;
-                        const handlers = { onClick: () => select(block.sessionId), onDblClick: () => openActivity(block.sessionId) };
+                        const isSelected = block.id === selectedBlockId;
+                        const handlers = { onClick: () => select({ type: 'block', sessionId: block.sessionId, block }), onDblClick: () => openActivity(block.sessionId) };
                         if (block.kind === 'work') {
                             const hasFailure = block.items.some((item) => item.ok === false);
                             return (
                                 <Group key={block.id} x={x} y={y} {...handlers}>
-                                    <Rect width={COLUMN_WIDTH} height={height} cornerRadius={10} fill={palette.card} stroke={isSelected ? palette.edge : palette.border} strokeWidth={1} />
+                                    <Rect width={COLUMN_WIDTH} height={height} cornerRadius={10} fill={palette.card} stroke={isSelected ? palette.borderStrong : palette.border} strokeWidth={isSelected ? 1.5 : 1} />
                                     {hasFailure && <Circle x={COLUMN_WIDTH - 14} y={14} radius={3.5} fill={palette.failed} listening={false} />}
                                     <Text {...text} x={12} y={11} width={COLUMN_WIDTH - 36} text={blockTitle(block, nameOf)} fontSize={13} fill={palette.text} ellipsis wrap="none" />
                                     <Text {...text} x={12} y={34} width={COLUMN_WIDTH - 24} text={blockCounts(block)} fontSize={11} fill={palette.mutedText} ellipsis wrap="none" />
@@ -123,7 +125,7 @@ export function FlowView() {
                             <Group key={block.id} x={x} y={y} {...handlers}>
                                 <Rect width={COLUMN_WIDTH} height={height} cornerRadius={height / 2} fill={palette.background} />
                                 <Rect width={COLUMN_WIDTH} height={height} cornerRadius={height / 2} fill={accent} opacity={isWaiting ? palette.waitingOpacity * 0.6 : 0.14} />
-                                <Rect width={COLUMN_WIDTH} height={height} cornerRadius={height / 2} stroke={accent} strokeWidth={1} opacity={0.5} listening={false} />
+                                <Rect width={COLUMN_WIDTH} height={height} cornerRadius={height / 2} stroke={isSelected ? palette.borderStrong : accent} strokeWidth={isSelected ? 1.5 : 1} opacity={isSelected ? 1 : 0.5} listening={false} />
                                 <Text {...text} x={14} y={height / 2 - 7} width={COLUMN_WIDTH - 28} text={blockTitle(block, nameOf)} fontSize={12} fontStyle="500" fill={palette.text} ellipsis wrap="none" />
                             </Group>
                         );

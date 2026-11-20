@@ -8,20 +8,8 @@ export interface SessionFilters {
     to: string;
 }
 
-const COLLAPSED_KEY = 'z4-viewer-sessions-collapsed';
-
-function readCollapsed(): boolean {
-    try {
-        return localStorage.getItem(COLLAPSED_KEY) === '1';
-    } catch {
-        return false;
-    }
-}
-
 interface SessionListState {
     sessions: SessionSummary[];
-    isCollapsed: boolean;
-    setCollapsed: (isCollapsed: boolean) => void;
     filters: SessionFilters;
     isLoading: boolean;
     refresh: () => Promise<void>;
@@ -30,15 +18,6 @@ interface SessionListState {
 
 export const useSessionListStore = create<SessionListState>((set) => ({
     sessions: [],
-    isCollapsed: readCollapsed(),
-    setCollapsed: (isCollapsed) => {
-        try {
-            localStorage.setItem(COLLAPSED_KEY, isCollapsed ? '1' : '0');
-        } catch {
-            // Private mode: the panel just opens again next time.
-        }
-        set({ isCollapsed });
-    },
     filters: { source: 'all', project: '', from: '', to: '' },
     isLoading: false,
     refresh: async () => {

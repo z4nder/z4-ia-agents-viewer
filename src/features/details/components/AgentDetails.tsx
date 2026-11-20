@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo } from 'react';
+import { Row, Section } from '@/components/detail';
 import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,11 +8,10 @@ import { formatDuration, formatTokens } from '@/lib/format';
 import { TOOL_BADGE_CLASSES, TOOL_LABELS } from '@/lib/toolColors';
 import { cn } from '@/lib/utils';
 import { SKILL_USE_LABELS, tagEvent, type SkillUse } from '../../../../server/classify';
-import { buildLane, type ProcessResult, type Segment } from '../../../../server/analysis';
+import { buildLane, type ProcessResult } from '../../../../server/analysis';
 import type { Session } from '../../../../server/model';
-import { findSession, useSessionStore } from '../store/sessionStore';
+import { findSession, useSessionStore } from '@/features/session-tree/store/sessionStore';
 
-const SEGMENT_TITLES: Record<Segment['kind'], string> = { waiting: 'Bloco de espera', process: 'Processo longo', tool: 'Chamada de ferramenta' };
 const RESULT_LABELS: Record<ProcessResult, string> = { passed: 'Passou', failed: 'Falhou', inconclusive: 'Inconclusivo' };
 const RESULT_DOT_CLASSES: Record<ProcessResult, string> = { passed: 'bg-blue-500', failed: 'bg-red-500', inconclusive: 'bg-neutral-400' };
 
@@ -21,44 +21,6 @@ const TOKEN_PARTS = [
     { key: 'cacheWrite', label: 'Cache gravado', className: 'bg-indigo-400' },
     { key: 'output', label: 'Saída', className: 'bg-emerald-500' },
 ] as const;
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-    return (
-        <section className="space-y-3">
-            <h3 className="text-sm font-semibold">{title}</h3>
-            {children}
-        </section>
-    );
-}
-
-function Row({ label, value, swatch }: { label: string; value: string; swatch?: string }) {
-    return (
-        <div className="flex items-center justify-between gap-4 text-sm">
-            <span className="flex items-center gap-2 text-muted-foreground">
-                {swatch && <span className={cn('size-2 rounded-full', swatch)} />}
-                {label}
-            </span>
-            <span className="font-medium tabular-nums">{value}</span>
-        </div>
-    );
-}
-
-function SelectedSegment({ segment }: { segment: Segment }) {
-    return (
-        <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold">{SEGMENT_TITLES[segment.kind]}</span>
-                {segment.result && <Badge variant="outline">{RESULT_LABELS[segment.result]}</Badge>}
-            </div>
-            <p className="font-mono text-xs break-all text-muted-foreground">{segment.label}</p>
-            <div className="grid grid-cols-3 gap-2">
-                <Stat value={formatDuration(segment.end - segment.start)} label="duração" />
-                {segment.kind !== 'tool' && <Stat value={String(segment.calls)} label="chamadas" />}
-                {segment.kind !== 'tool' && <Stat value={formatTokens(segment.tokens)} label="tokens" />}
-            </div>
-        </div>
-    );
-}
 
 function TokenBreakdown({ session }: { session: Session }) {
     const total = session.tokens.total || 1;
@@ -137,16 +99,15 @@ function UsageList({ title, items, dotClass }: { title: string; items: Usage[]; 
     );
 }
 
-/** Side panel for the selected agent. */
-export function SessionDetails() {
-    const session = useSessionStore((state) => findSession(state.root, state.selectedId));
-    const selectedSegment = useSessionStore((state) => state.selectedSegment);
+/** Everything about one agent: stats, tokens, waits, long processes, MCP and skills, tools. */
+export function AgentDetails({ sessionId }: { sessionId: string }) {
+    const session = useSessionStore((state) => findSession(state.root, sessionId));
     const view = useSessionStore((state) => state.view);
     const setView = useSessionStore((state) => state.setView);
     const lane = useMemo(() => (session ? buildLane(session, 0) : null), [session]);
 
     if (!session || !lane) {
-        return <p className="p-4 text-sm text-muted-foreground">Clique num agente para ver os detalhes.</p>;
+        return null;
     }
 
     const toolCounts = new Map<string, number>();
@@ -161,7 +122,7 @@ export function SessionDetails() {
     const longProcesses = lane.segments.filter((segment) => segment.kind === 'process').sort((a, b) => b.end - b.start - (a.end - a.start));
 
     return (
-        <div className="space-y-5 p-4">
+        <div className="space-y-5">
             <header className="space-y-2">
                 <h2 className="text-base leading-snug font-semibold">{session.nickname ?? session.role}</h2>
                 <div className="flex flex-wrap gap-1.5">
@@ -185,8 +146,6 @@ export function SessionDetails() {
                     Ver o que este agente fez
                 </Button>
             )}
-
-            {selectedSegment && <SelectedSegment segment={selectedSegment} />}
 
             <Separator />
             <TokenBreakdown session={session} />

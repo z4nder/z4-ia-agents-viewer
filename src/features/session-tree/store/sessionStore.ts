@@ -1,25 +1,37 @@
 import { create } from 'zustand';
+import { useToolboxStore } from '@/features/toolbox/store/toolboxStore';
+import type { ActivityItem } from '../../../../server/activity';
 import type { Segment } from '../../../../server/analysis';
+import type { FlowBlock } from '../../../../server/flow';
 import type { Session } from '../../../../server/model';
 
 export type SessionView = 'tree' | 'timeline' | 'flow' | 'activity';
 
+/** What was clicked last; every kind belongs to one agent, so the views can highlight it. */
+export type Selection =
+    | { type: 'agent'; sessionId: string }
+    | { type: 'segment'; sessionId: string; segment: Segment }
+    | { type: 'block'; sessionId: string; block: FlowBlock }
+    | { type: 'item'; sessionId: string; item: ActivityItem };
+
 interface SessionState {
     root: Session | null;
+    selection: Selection | null;
+    /** The agent of the current selection. */
     selectedId: string | null;
-    /** Timeline only: the block clicked inside the selected agent's lane. */
-    selectedSegment: Segment | null;
     view: SessionView;
     error: string | null;
     load: (file: string) => Promise<void>;
-    select: (id: string | null, segment?: Segment | null) => void;
+    /** Selects something and reveals it in the details tool (unless `reveal` is false). */
+    select: (selection: Selection, reveal?: boolean) => void;
+    selectAgent: (sessionId: string, reveal?: boolean) => void;
     setView: (view: SessionView) => void;
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
     root: null,
+    selection: null,
     selectedId: null,
-    selectedSegment: null,
     view: 'tree',
     error: null,
     load: async (file) => {
@@ -30,9 +42,15 @@ export const useSessionStore = create<SessionState>((set) => ({
             set({ error: body.error ?? 'Falha ao carregar a sessão', root: null });
             return;
         }
-        set({ root: body, selectedId: body.id, selectedSegment: null });
+        set({ root: body, selection: { type: 'agent', sessionId: body.id }, selectedId: body.id });
     },
-    select: (id, segment = null) => set({ selectedId: id, selectedSegment: segment }),
+    select: (selection, reveal = true) => {
+        set({ selection, selectedId: selection.sessionId });
+        if (reveal) {
+            useToolboxStore.getState().revealDetails();
+        }
+    },
+    selectAgent: (sessionId, reveal = true) => get().select({ type: 'agent', sessionId }, reveal),
     setView: (view) => set({ view }),
 }));
 

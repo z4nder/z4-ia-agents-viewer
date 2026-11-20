@@ -82,7 +82,7 @@ export function SessionTree() {
     const [size, setSize] = useState({ width: 0, height: 0 });
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
-    const select = useSessionStore((state) => state.select);
+    const selectAgent = useSessionStore((state) => state.selectAgent);
     const setView = useSessionStore((state) => state.setView);
     const palette = useCanvasPalette();
     const fontsReady = useFontsReady();
@@ -135,7 +135,7 @@ export function SessionTree() {
                         })}
                         {nodes.map(({ session, x, y }) => (
                             <Group key={session.id} x={x} y={y}>
-                                <NodeCard session={session} share={sessionTotal ? session.tokens.total / sessionTotal : 0} isSelected={session.id === selectedId} palette={palette} onSelect={() => select(session.id)} onOpen={() => { select(session.id); setView('activity'); }} />
+                                <NodeCard session={session} share={sessionTotal ? session.tokens.total / sessionTotal : 0} isSelected={session.id === selectedId} palette={palette} onSelect={() => selectAgent(session.id)} onOpen={() => { selectAgent(session.id); setView('activity'); }} />
                             </Group>
                         ))}
                     </Layer>
