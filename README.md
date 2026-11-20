@@ -17,7 +17,9 @@ A lista da esquerda acha sozinha as sessões em `~/.claude/projects`, `~/.codex/
 - **Árvore:** líder → subagentes, com tokens, chamadas e duração em cada nó.
 - **Linha do tempo:** uma faixa por agente. Âmbar são as esperas (`wait_agent`, `wait`, `write_stdin` vazio, `sleep`), juntas num bloco com o custo em chamadas e tokens; a barra de baixo marca os processos longos (azul passou, vermelho falhou, cinza inconclusivo); traços escuros são as ferramentas e os pontos são as chamadas ao modelo. Roda do mouse dá zoom, arrastar move, duplo clique volta ao todo.
 
-Link direto: `http://localhost:5173/?file=<caminho do .jsonl>&view=timeline`.
+- **Atividade:** o que o agente selecionado fez, em ordem: o pedido, as respostas, cada comando com a saída (clique para abrir), delegações, mensagens entre agentes e esperas. No topo, o que ele recebeu e como começou e terminou. Duplo clique num cartão da árvore abre aqui.
+
+Link direto: `http://localhost:5173/?file=<caminho do .jsonl>&view=tree|timeline|activity&agent=<id do agente>`.
 
 ## CLI e testes
 
@@ -38,10 +40,12 @@ Os testes de integração usam gravações opcionais em `~/.local/share/agent-vi
 | `server/adapters/codex.ts` | JSONL do Codex → modelo; filhos por `parent_thread_id` |
 | `server/adapters/claude.ts` | JSONL do Claude → modelo; subagentes em `<sessionId>/subagents/`, tokens juntados por `message.id` |
 | `server/analysis.ts` | Linha do tempo: blocos de espera, processos longos (cell → wait → write_stdin no Codex) e estatísticas por agente |
+| `server/activity.ts` | Sequência do que cada agente fez, com as esperas juntadas e o resumo (pedido, começo, fim) |
 | `server/discover.ts` | Acha as sessões raiz de cada ferramenta lendo só o começo do arquivo (cache por mtime) |
 | `server/index.ts` | API local só leitura; só abre `.jsonl` dentro das pastas das ferramentas |
 | `src/features/session-list/` | Lista e filtros das sessões |
 | `src/features/session-tree/` | Árvore em react-konva, painel de detalhes e store zustand |
 | `src/features/timeline/` | Linha do tempo em react-konva |
+| `src/features/activity/` | Feed de atividade por agente |
 
 O conteúdo das sessões é dado, não instrução: a página mostra texto e nunca executa nada.

@@ -11,6 +11,8 @@ import { finishSession, newSession, trackTimestamp, type Session, type SessionEv
 
 const COMMAND_PATTERN = /cmd\s*:\s*"((?:[^"\\]|\\.)*)"/g;
 const FAILURE_PATTERN = /(Script failed|exit code[: ]+[1-9]|Process exited with code [1-9]|\berror:|Traceback)/i;
+/** Parallel runs build the list first: `const cmds=["git status", "cat AGENTS.md"];`. */
+const COMMAND_ARRAY_PATTERN = /\bcmds\s*=\s*(\[[\s\S]*?\])\s*;/;
 const INNER_TOOL_PATTERN = /tools\.(\w+)\(/g;
 const POLL_SESSION_PATTERN = /write_stdin\(\{\s*session_id\s*:\s*(\d+)\s*,\s*chars\s*:\s*""/;
 const EMPTY_STDIN_PATTERN = /write_stdin\(\{[^}]*chars\s*:\s*""/;
@@ -87,6 +89,19 @@ function applyExecResult(event: SessionEvent, output: string, processAliases: Ma
         event.ok = null;
     } else {
         event.ok = !FAILURE_PATTERN.test(output);
+    }
+}
+
+function parseCommandArray(input: string): string[] {
+    const array = input.match(COMMAND_ARRAY_PATTERN)?.[1];
+    if (!array) {
+        return [];
+    }
+    try {
+        const parsed = JSON.parse(array);
+        return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+        return [];
     }
 }
 
@@ -181,6 +196,9 @@ function handleResponseItem(session: Session, { pendingCalls, processAliases }: 
         case 'custom_tool_call': {
             const input: string = payload.input ?? '';
             const commands = [...input.matchAll(COMMAND_PATTERN)].map((match) => unescapeJsString(match[1]!));
+            if (commands.length === 0) {
+                commands.push(...parseCommandArray(input));
+            }
             // `exec` runs a JS snippet; the real tool is what it calls (exec_command, write_stdin…).
             const innerTool = input.matchAll(INNER_TOOL_PATTERN).next().value?.[1];
             const event: SessionEvent = { at, kind: 'tool', name: innerTool ?? payload.name, commands: commands.length ? commands : [input.slice(0, 300)], ok: null };

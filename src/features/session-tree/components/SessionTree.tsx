@@ -31,10 +31,11 @@ interface NodeCardProps {
     isSelected: boolean;
     palette: CanvasPalette;
     onSelect: () => void;
+    onOpen: () => void;
 }
 
 /** One agent: name and status, model, three stats, and its share of the whole session's tokens. */
-function NodeCard({ session, share, isSelected, palette, onSelect }: NodeCardProps) {
+function NodeCard({ session, share, isSelected, palette, onSelect, onOpen }: NodeCardProps) {
     const toolColor = palette[session.tool];
     const dot = statusColor(session, palette);
     const stats: [string, string][] = [
@@ -45,7 +46,7 @@ function NodeCard({ session, share, isSelected, palette, onSelect }: NodeCardPro
     const barWidth = NODE_WIDTH - PADDING * 2 - 44;
 
     return (
-        <Group onClick={onSelect} onTap={onSelect}>
+        <Group onClick={onSelect} onTap={onSelect} onDblClick={onOpen} onDblTap={onOpen}>
             <Rect
                 width={NODE_WIDTH}
                 height={NODE_HEIGHT}
@@ -82,6 +83,7 @@ export function SessionTree() {
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
     const select = useSessionStore((state) => state.select);
+    const setView = useSessionStore((state) => state.setView);
     const palette = useCanvasPalette();
     const fontsReady = useFontsReady();
     const nodes = useMemo(() => (root ? layoutTree(root) : []), [root]);
@@ -133,7 +135,7 @@ export function SessionTree() {
                         })}
                         {nodes.map(({ session, x, y }) => (
                             <Group key={session.id} x={x} y={y}>
-                                <NodeCard session={session} share={sessionTotal ? session.tokens.total / sessionTotal : 0} isSelected={session.id === selectedId} palette={palette} onSelect={() => select(session.id)} />
+                                <NodeCard session={session} share={sessionTotal ? session.tokens.total / sessionTotal : 0} isSelected={session.id === selectedId} palette={palette} onSelect={() => select(session.id)} onOpen={() => { select(session.id); setView('activity'); }} />
                             </Group>
                         ))}
                     </Layer>

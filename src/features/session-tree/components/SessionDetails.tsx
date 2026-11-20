@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { Stat } from '@/components/Stat';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { formatDuration, formatTokens } from '@/lib/format';
 import { TOOL_BADGE_CLASSES, TOOL_LABELS } from '@/lib/toolColors';
@@ -82,6 +83,8 @@ function TokenBreakdown({ session }: { session: Session }) {
 export function SessionDetails() {
     const session = useSessionStore((state) => findSession(state.root, state.selectedId));
     const selectedSegment = useSessionStore((state) => state.selectedSegment);
+    const view = useSessionStore((state) => state.view);
+    const setView = useSessionStore((state) => state.setView);
     const lane = useMemo(() => (session ? buildLane(session, 0) : null), [session]);
 
     if (!session || !lane) {
@@ -117,6 +120,12 @@ export function SessionDetails() {
                 <Stat value={String(session.calls.length)} label="chamadas" />
                 <Stat value={formatDuration(session.durationMs)} label="duração" />
             </div>
+
+            {view !== 'activity' && (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setView('activity')}>
+                    Ver o que este agente fez
+                </Button>
+            )}
 
             {selectedSegment && <SelectedSegment segment={selectedSegment} />}
 

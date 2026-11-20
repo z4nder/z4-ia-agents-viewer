@@ -5,6 +5,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ActivityFeed } from '@/features/activity/components/ActivityFeed';
 import { SessionList } from '@/features/session-list/components/SessionList';
 import { useSessionListStore } from '@/features/session-list/store/sessionListStore';
 import { SessionDetails } from '@/features/session-tree/components/SessionDetails';
@@ -25,14 +26,19 @@ function App() {
     const setListCollapsed = useSessionListStore((state) => state.setCollapsed);
 
     useEffect(() => {
-        // Deep link: ?file=<session .jsonl>&view=timeline
+        // Deep link: ?file=<session .jsonl>&view=timeline|activity&agent=<session id>
         const params = new URLSearchParams(window.location.search);
         const file = params.get('file');
+        const agent = params.get('agent');
         if (file) {
-            void useSessionStore.getState().load(file);
+            void useSessionStore
+                .getState()
+                .load(file)
+                .then(() => agent && useSessionStore.getState().select(agent));
         }
-        if (params.get('view') === 'timeline') {
-            setView('timeline');
+        const initialView = params.get('view');
+        if (initialView === 'timeline' || initialView === 'activity') {
+            setView(initialView);
         }
     }, [setView]);
 
@@ -63,13 +69,18 @@ function App() {
                         <TabsList>
                             <TabsTrigger value="tree">Árvore</TabsTrigger>
                             <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+                            <TabsTrigger value="activity">Atividade</TabsTrigger>
                         </TabsList>
                     </Tabs>
                     <ThemeToggle />
                 </header>
                 {error && <p className="bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
                 <main className="flex min-h-0 flex-1">
-                    <div className="min-w-0 flex-1">{view === 'tree' ? <SessionTree /> : <Timeline />}</div>
+                    <div className="min-w-0 flex-1">
+                        {view === 'tree' && <SessionTree />}
+                        {view === 'timeline' && <Timeline />}
+                        {view === 'activity' && <ActivityFeed />}
+                    </div>
                     <aside className="w-80 shrink-0 overflow-y-auto border-l">
                         <SessionDetails />
                     </aside>
