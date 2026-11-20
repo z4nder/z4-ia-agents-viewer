@@ -13,6 +13,13 @@ import { readJsonl } from '../jsonl';
 import { finishSession, newSession, trackTimestamp, type Session, type SessionEvent, type Tokens } from '../model';
 
 const SPAWN_TOOLS = new Set(['Agent', 'Task']);
+/** Calls that only wait: reading a background task's output, or a bare `sleep`. */
+const POLL_TOOLS = new Set(['BashOutput', 'TaskOutput']);
+const BARE_SLEEP_PATTERN = /^\s*sleep\s+[\d.]+\s*$/;
+
+function isPollCall(name: string, input: any): boolean {
+    return POLL_TOOLS.has(name) || (name === 'Bash' && BARE_SLEEP_PATTERN.test(String(input?.command ?? '')));
+}
 
 interface SubagentMeta {
     agentType?: string;
@@ -126,7 +133,7 @@ async function loadClaudeFile(file: string, fields: Partial<Session>): Promise<L
                 } else if (block.type === 'tool_use') {
                     const event: SessionEvent = SPAWN_TOOLS.has(block.name)
                         ? { at, kind: 'spawn', name: block.name, agent: block.input?.subagent_type ?? 'general-purpose', task: block.input?.description, ok: null }
-                        : { at, kind: 'tool', name: block.name, commands: describeToolInput(block.name, block.input), ok: null };
+                        : { at, kind: 'tool', name: block.name, commands: describeToolInput(block.name, block.input), ok: null, isPoll: isPollCall(block.name, block.input) || undefined };
                     pendingTools.set(block.id, event);
                     if (event.kind === 'spawn') {
                         spawnsByToolUseId.set(block.id, event);

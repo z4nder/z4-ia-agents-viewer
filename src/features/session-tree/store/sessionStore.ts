@@ -1,17 +1,26 @@
 import { create } from 'zustand';
+import type { Segment } from '../../../../server/analysis';
 import type { Session } from '../../../../server/model';
+
+export type SessionView = 'tree' | 'timeline';
 
 interface SessionState {
     root: Session | null;
     selectedId: string | null;
+    /** Timeline only: the block clicked inside the selected agent's lane. */
+    selectedSegment: Segment | null;
+    view: SessionView;
     error: string | null;
     load: (file: string) => Promise<void>;
-    select: (id: string | null) => void;
+    select: (id: string | null, segment?: Segment | null) => void;
+    setView: (view: SessionView) => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
     root: null,
     selectedId: null,
+    selectedSegment: null,
+    view: 'tree',
     error: null,
     load: async (file) => {
         set({ error: null });
@@ -21,9 +30,10 @@ export const useSessionStore = create<SessionState>((set) => ({
             set({ error: body.error ?? 'Falha ao carregar a sessão', root: null });
             return;
         }
-        set({ root: body, selectedId: body.id });
+        set({ root: body, selectedId: body.id, selectedSegment: null });
     },
-    select: (id) => set({ selectedId: id }),
+    select: (id, segment = null) => set({ selectedId: id, selectedSegment: segment }),
+    setView: (view) => set({ view }),
 }));
 
 export function findSession(root: Session | null, id: string | null): Session | null {

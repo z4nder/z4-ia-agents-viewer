@@ -83,6 +83,9 @@ export function SessionTree() {
                                     <Text
                                         x={16}
                                         y={58}
+                                        width={NODE_WIDTH - 28}
+                                        ellipsis
+                                        wrap="none"
                                         text={`${formatTokens(session.tokens.total)} tokens · ${session.calls.length} chamadas · ${formatDuration(session.durationMs)}`}
                                         fontSize={12}
                                         fill="#44403c"

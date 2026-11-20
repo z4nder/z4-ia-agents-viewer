@@ -2,6 +2,21 @@
 
 export type Tool = 'codex' | 'claude';
 
+/** Where a session was found; `gravada` is a locally saved recording. */
+export type SessionSource = 'claude' | 'codex' | 'codex-empresa' | 'gravada';
+
+export interface SessionSummary {
+    file: string;
+    tool: Tool;
+    source: SessionSource;
+    id: string;
+    title: string | null;
+    cwd: string | null;
+    startedAt: string | null;
+    updatedAt: string;
+    sizeBytes: number;
+}
+
 export type SessionStatus = 'running' | 'finished' | 'failed' | 'unknown';
 
 /**
@@ -26,6 +41,11 @@ export interface SessionEvent {
     text?: string;
     commands?: string[];
     ok?: boolean | null;
+    exitCode?: number;
+    /** A process that kept running after the call returned (Codex exec session_id); polls point to it too. */
+    processId?: string;
+    /** Waiting for something else (wait_agent, polling a running process): no work of its own. */
+    isPoll?: boolean;
     output?: string;
     seconds?: number;
     /** spawn: agent type, task and the child session it created. */

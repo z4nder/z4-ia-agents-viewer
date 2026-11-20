@@ -11,6 +11,15 @@ import { finishSession, newSession, trackTimestamp, type Session, type SessionEv
 
 const COMMAND_PATTERN = /cmd\s*:\s*"((?:[^"\\]|\\.)*)"/g;
 const FAILURE_PATTERN = /(Script failed|exit code[: ]+[1-9]|Process exited with code [1-9]|\berror:|Traceback)/i;
+const INNER_TOOL_PATTERN = /tools\.(\w+)\(/g;
+const POLL_SESSION_PATTERN = /write_stdin\(\{\s*session_id\s*:\s*(\d+)\s*,\s*chars\s*:\s*""/;
+const EMPTY_STDIN_PATTERN = /write_stdin\(\{[^}]*chars\s*:\s*""/;
+const CHUNK_PATTERN = /"chunk_id"/g;
+const EXIT_CODE_PATTERN = /"exit_code"\s*:\s*(-?\d+)/g;
+const RUNNING_SESSION_PATTERN = /"session_id"\s*:\s*(\d+)/g;
+const RUNNING_CELL_PATTERN = /Script running with cell ID (\d+)/;
+/** Agent actions that only wait for another agent. */
+const WAIT_ACTIONS = new Set(['wait_agent', 'wait']);
 
 function textOf(content: unknown): string {
     if (typeof content === 'string') {
@@ -50,6 +59,35 @@ function normalizeUsage(usage: any): Tokens {
         reasoning: usage.reasoning_output_tokens ?? 0,
         total: input + output,
     };
+}
+
+/**
+ * exec_command/write_stdin answer with JSON: `exit_code` when the process ended, `session_id` while it keeps running.
+ * Without either (other tools), fall back to looking for failure text.
+ */
+function applyExecResult(event: SessionEvent, output: string, processAliases: Map<string, string>): void {
+    if ((output.match(CHUNK_PATTERN)?.length ?? 0) > 1) {
+        // Several processes answered in one call: their exit codes can't be told apart here.
+        event.ok = null;
+        return;
+    }
+    const exitCode = [...output.matchAll(EXIT_CODE_PATTERN)].at(-1)?.[1];
+    const runningSession = [...output.matchAll(RUNNING_SESSION_PATTERN)].at(-1)?.[1];
+    if (runningSession !== undefined) {
+        // A wait on cell-N that reveals the process id: later polls on that id belong to the same process.
+        if (event.processId && !processAliases.has(runningSession)) {
+            processAliases.set(runningSession, event.processId);
+        }
+        event.processId ??= processAliases.get(runningSession) ?? runningSession;
+    }
+    if (exitCode !== undefined) {
+        event.exitCode = Number(exitCode);
+        event.ok = event.exitCode === 0;
+    } else if (runningSession !== undefined) {
+        event.ok = null;
+    } else {
+        event.ok = !FAILURE_PATTERN.test(output);
+    }
 }
 
 function summarizeArgs(args: Record<string, unknown>): string {
@@ -92,7 +130,7 @@ export async function loadCodexSession(file: string): Promise<Session> {
         nickname: meta.agent_nickname ?? spawn.agent_nickname ?? null,
         cwd: meta.cwd ?? null,
     });
-    const pendingCalls = new Map<string, SessionEvent>();
+    const context: ParseContext = { pendingCalls: new Map(), processAliases: new Map() };
 
     for (const entry of lines) {
         const payload = entry.payload ?? {};
@@ -105,14 +143,27 @@ export async function loadCodexSession(file: string): Promise<Session> {
         } else if (entry.type === 'token_usage_record') {
             session.calls.push({ at, tokens: normalizeUsage(payload.usage ?? {}) });
         } else if (entry.type === 'response_item') {
-            handleResponseItem(session, pendingCalls, payload, at);
+            handleResponseItem(session, context, payload, at);
         }
     }
 
+    // Codex keeps no title in the rollout: use the first line of the first real prompt.
+    const firstPrompt = session.events.find((event) => event.kind === 'user')?.text?.trim().split('\n')[0];
+    session.title = firstPrompt ? firstPrompt.slice(0, 120) : null;
     return finishSession(session);
 }
 
-function handleResponseItem(session: Session, pendingCalls: Map<string, SessionEvent>, payload: any, at: string | null): void {
+/**
+ * A long command chains three ids: exec answers "Script running with cell ID 27", `wait {cell_id: 27}` answers
+ * with the process `session_id`, and later `write_stdin` polls that session_id. All of them map to one process.
+ */
+interface ParseContext {
+    pendingCalls: Map<string, SessionEvent>;
+    /** process session_id → the id used for the process (cell-N when it started as a running cell). */
+    processAliases: Map<string, string>;
+}
+
+function handleResponseItem(session: Session, { pendingCalls, processAliases }: ParseContext, payload: any, at: string | null): void {
     switch (payload.type) {
         case 'message': {
             const text = textOf(payload.content).trim();
@@ -130,7 +181,17 @@ function handleResponseItem(session: Session, pendingCalls: Map<string, SessionE
         case 'custom_tool_call': {
             const input: string = payload.input ?? '';
             const commands = [...input.matchAll(COMMAND_PATTERN)].map((match) => unescapeJsString(match[1]!));
-            const event: SessionEvent = { at, kind: 'tool', name: payload.name, commands: commands.length ? commands : [input.slice(0, 300)], ok: null };
+            // `exec` runs a JS snippet; the real tool is what it calls (exec_command, write_stdin…).
+            const innerTool = input.matchAll(INNER_TOOL_PATTERN).next().value?.[1];
+            const event: SessionEvent = { at, kind: 'tool', name: innerTool ?? payload.name, commands: commands.length ? commands : [input.slice(0, 300)], ok: null };
+            const polledSession = input.match(POLL_SESSION_PATTERN)?.[1];
+            if (polledSession) {
+                event.isPoll = true;
+                event.processId = processAliases.get(polledSession) ?? polledSession;
+            } else if (EMPTY_STDIN_PATTERN.test(input)) {
+                // Polls several processes at once (ids in a variable): waiting, but not tied to one process.
+                event.isPoll = true;
+            }
             pendingCalls.set(payload.call_id, event);
             session.events.push(event);
             return;
@@ -145,7 +206,10 @@ function handleResponseItem(session: Session, pendingCalls: Map<string, SessionE
             const event: SessionEvent =
                 payload.name === 'spawn_agent'
                     ? { at, kind: 'spawn', name: payload.name, agent: args.agent_type, task: args.task_name, ok: null }
-                    : { at, kind: 'action', name: payload.name, text: summarizeArgs(args), ok: null };
+                    : { at, kind: 'action', name: payload.name, text: summarizeArgs(args), ok: null, isPoll: WAIT_ACTIONS.has(payload.name) || undefined };
+            if (args.cell_id !== undefined) {
+                event.processId = `cell-${args.cell_id}`;
+            }
             pendingCalls.set(payload.call_id, event);
             session.events.push(event);
             return;
@@ -157,7 +221,12 @@ function handleResponseItem(session: Session, pendingCalls: Map<string, SessionE
                 return;
             }
             const output = Array.isArray(payload.output) ? textOf(payload.output) : String(payload.output ?? '');
-            event.ok = !FAILURE_PATTERN.test(output);
+            const runningCell = output.match(RUNNING_CELL_PATTERN)?.[1];
+            if (runningCell) {
+                event.processId = `cell-${runningCell}`;
+            } else {
+                applyExecResult(event, output, processAliases);
+            }
             event.output = output.slice(-1500);
             if (event.at && at) {
                 event.seconds = Math.round((Date.parse(at) - Date.parse(event.at)) / 100) / 10;
