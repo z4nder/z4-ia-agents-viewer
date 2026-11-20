@@ -1,12 +1,79 @@
 import type Konva from 'konva';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Group, Layer, Line, Rect, Stage, Text } from 'react-konva';
+import { Circle, Group, Layer, Line, Rect, Stage, Text } from 'react-konva';
+import { CANVAS_FONT, useFontsReady } from '@/lib/canvasFont';
 import { formatDuration, formatTokens } from '@/lib/format';
+import { useCanvasPalette, type CanvasPalette } from '@/lib/theme';
+import { treeTokens, type Session } from '../../../../server/model';
 import { layoutTree, NODE_HEIGHT, NODE_WIDTH } from '../layout';
 import { useSessionStore } from '../store/sessionStore';
 
-const TOOL_COLORS = { codex: '#0f766e', claude: '#c2410c' } as const;
 const ZOOM_STEP = 1.1;
+const PADDING = 16;
+const STAT_COLUMN = (NODE_WIDTH - PADDING * 2) / 3;
+
+function statusColor(session: Session, palette: CanvasPalette): string | null {
+    switch (session.status) {
+        case 'finished':
+            return palette.statusFinished;
+        case 'failed':
+            return palette.statusFailed;
+        case 'running':
+            return palette.statusRunning;
+        default:
+            return null;
+    }
+}
+
+interface NodeCardProps {
+    session: Session;
+    share: number;
+    isSelected: boolean;
+    palette: CanvasPalette;
+    onSelect: () => void;
+}
+
+/** One agent: name and status, model, three stats, and its share of the whole session's tokens. */
+function NodeCard({ session, share, isSelected, palette, onSelect }: NodeCardProps) {
+    const toolColor = palette[session.tool];
+    const dot = statusColor(session, palette);
+    const stats: [string, string][] = [
+        [formatTokens(session.tokens.total), 'tokens'],
+        [String(session.calls.length), 'chamadas'],
+        [formatDuration(session.durationMs), 'duração'],
+    ];
+    const barWidth = NODE_WIDTH - PADDING * 2 - 44;
+
+    return (
+        <Group onClick={onSelect} onTap={onSelect}>
+            <Rect
+                width={NODE_WIDTH}
+                height={NODE_HEIGHT}
+                cornerRadius={12}
+                fill={palette.card}
+                stroke={isSelected ? palette.borderStrong : palette.border}
+                strokeWidth={isSelected ? 1.5 : 1}
+                shadowColor="#000000"
+                shadowOpacity={palette.shadowOpacity}
+                shadowBlur={12}
+                shadowOffsetY={2}
+            />
+            <Circle x={PADDING + 4} y={22} radius={4} fill={toolColor} />
+            <Text x={PADDING + 14} y={14} width={NODE_WIDTH - PADDING * 2 - 30} text={session.role} fontFamily={CANVAS_FONT} fontSize={14} fontStyle="600" fill={palette.text} ellipsis wrap="none" />
+            {dot && <Circle x={NODE_WIDTH - PADDING - 4} y={22} radius={4} fill={dot} />}
+            <Text x={PADDING} y={36} width={NODE_WIDTH - PADDING * 2} text={[session.nickname, session.model ?? 'modelo desconhecido', session.effort].filter(Boolean).join(', ')} fontFamily={CANVAS_FONT} fontSize={12} fill={palette.mutedText} ellipsis wrap="none" />
+            {stats.map(([value, label], index) => (
+                <Group key={label} x={PADDING + index * STAT_COLUMN} y={60}>
+                    <Text text={value} width={STAT_COLUMN - 8} fontFamily={CANVAS_FONT} fontSize={17} fontStyle="600" fill={palette.text} ellipsis wrap="none" />
+                    <Text y={21} text={label} fontFamily={CANVAS_FONT} fontSize={11} fill={palette.mutedText} />
+                </Group>
+            ))}
+            <Rect x={PADDING} y={106} width={barWidth} height={4} cornerRadius={2} fill={palette.laneBar} />
+            <Rect x={PADDING} y={106} width={Math.max(2, barWidth * share)} height={4} cornerRadius={2} fill={toolColor} />
+            <Text x={PADDING + barWidth} y={102} width={44} align="right" text={`${Math.round(share * 100)}%`} fontFamily={CANVAS_FONT} fontSize={11} fill={palette.mutedText} />
+        </Group>
+    );
+}
 
 /** Pannable, zoomable canvas with one card per agent. */
 export function SessionTree() {
@@ -15,7 +82,10 @@ export function SessionTree() {
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
     const select = useSessionStore((state) => state.select);
+    const palette = useCanvasPalette();
+    const fontsReady = useFontsReady();
     const nodes = useMemo(() => (root ? layoutTree(root) : []), [root]);
+    const sessionTotal = useMemo(() => (root ? treeTokens(root).total : 0), [root]);
 
     useLayoutEffect(() => {
         const container = containerRef.current;
@@ -46,53 +116,26 @@ export function SessionTree() {
     }
 
     return (
-        <div ref={containerRef} className="h-full w-full overflow-hidden bg-stone-100">
-            {size.width > 0 && (
-                <Stage width={size.width} height={size.height} draggable onWheel={handleWheel} x={40} y={40}>
+        <div ref={containerRef} className="h-full w-full overflow-hidden" style={{ background: palette.background }}>
+            {!root && <p className="flex h-full items-center justify-center text-sm text-muted-foreground">Escolha uma sessão na lista para ver os agentes.</p>}
+            {root && size.width > 0 && (
+                <Stage key={fontsReady ? 'fonts' : 'fallback'} width={size.width} height={size.height} draggable onWheel={handleWheel} x={48} y={48}>
                     <Layer>
-                        {nodes.map(
-                            (node) =>
-                                node.parent && (
-                                    <Line
-                                        key={`edge-${node.session.id}`}
-                                        points={[node.parent.x + NODE_WIDTH / 2, node.parent.y + NODE_HEIGHT, node.x + NODE_WIDTH / 2, node.y]}
-                                        stroke="#a8a29e"
-                                        strokeWidth={1.5}
-                                    />
-                                ),
-                        )}
-                        {nodes.map(({ session, x, y }) => {
-                            const isSelected = session.id === selectedId;
-                            const name = session.nickname ? `${session.role} · ${session.nickname}` : session.role;
-                            return (
-                                <Group key={session.id} x={x} y={y} onClick={() => select(session.id)} onTap={() => select(session.id)}>
-                                    <Rect
-                                        width={NODE_WIDTH}
-                                        height={NODE_HEIGHT}
-                                        cornerRadius={10}
-                                        fill="#ffffff"
-                                        stroke={isSelected ? '#1c1917' : '#d6d3d1'}
-                                        strokeWidth={isSelected ? 2 : 1}
-                                        shadowColor="#000000"
-                                        shadowOpacity={0.06}
-                                        shadowBlur={8}
-                                    />
-                                    <Rect width={6} height={NODE_HEIGHT} cornerRadius={[10, 0, 0, 10]} fill={TOOL_COLORS[session.tool]} />
-                                    <Text x={16} y={12} width={NODE_WIDTH - 28} text={name} fontSize={14} fontStyle="bold" fill="#1c1917" ellipsis wrap="none" />
-                                    <Text x={16} y={34} text={session.model ?? '?'} fontSize={12} fill="#78716c" />
-                                    <Text
-                                        x={16}
-                                        y={58}
-                                        width={NODE_WIDTH - 28}
-                                        ellipsis
-                                        wrap="none"
-                                        text={`${formatTokens(session.tokens.total)} tokens · ${session.calls.length} chamadas · ${formatDuration(session.durationMs)}`}
-                                        fontSize={12}
-                                        fill="#44403c"
-                                    />
-                                </Group>
-                            );
+                        {nodes.map(({ session, x, y, parent }) => {
+                            if (!parent) {
+                                return null;
+                            }
+                            const fromX = parent.x + NODE_WIDTH / 2;
+                            const fromY = parent.y + NODE_HEIGHT;
+                            const toX = x + NODE_WIDTH / 2;
+                            const midY = (fromY + y) / 2;
+                            return <Line key={`edge-${session.id}`} points={[fromX, fromY, fromX, midY, toX, midY, toX, y]} stroke={palette.edge} strokeWidth={1.25} lineCap="round" lineJoin="round" />;
                         })}
+                        {nodes.map(({ session, x, y }) => (
+                            <Group key={session.id} x={x} y={y}>
+                                <NodeCard session={session} share={sessionTotal ? session.tokens.total / sessionTotal : 0} isSelected={session.id === selectedId} palette={palette} onSelect={() => select(session.id)} />
+                            </Group>
+                        ))}
                     </Layer>
                 </Stage>
             )}

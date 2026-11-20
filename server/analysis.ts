@@ -145,7 +145,7 @@ export function buildLane(session: Session, depth: number): Lane {
 
     return {
         sessionId: session.id,
-        label: session.nickname ? `${session.role} · ${session.nickname}` : session.role,
+        label: session.nickname ? `${session.role} (${session.nickname})` : session.role,
         depth,
         start: session.startedAt ? Date.parse(session.startedAt) : NaN,
         end: session.endedAt ? Date.parse(session.endedAt) : NaN,

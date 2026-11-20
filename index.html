@@ -4,6 +4,15 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Sessões de agentes</title>
+        <script>
+            // Applies the theme before React loads, so a dark page doesn't flash white.
+            try {
+                const stored = localStorage.getItem('z4-viewer-theme');
+                const isDark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+                document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            } catch {}
+        </script>
     </head>
     <body>
         <div id="app"></div>

@@ -23,7 +23,7 @@ describe.skipIf(!existsSync(codexLeader))('timeline of the issue 42 session', ()
         expect(leader!.stats.waitingCalls).toBeGreaterThan(90);
         expect(leader!.stats.waitingMs / 60_000).toBeGreaterThan(45);
         expect(leader!.segments.some((segment) => segment.kind === 'waiting' && segment.label.includes('wait_agent'))).toBe(true);
-        expect(judge!.label).toBe('demo-julgamento · Hubble');
+        expect(judge!.label).toBe('demo-julgamento (Hubble)');
         expect(antislop!.stats.waitingMs).toBe(0);
     });
 });

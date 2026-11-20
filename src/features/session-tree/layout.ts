@@ -1,8 +1,8 @@
 import type { Session } from '../../../server/model';
 
-export const NODE_WIDTH = 240;
-export const NODE_HEIGHT = 92;
-const COLUMN_GAP = 32;
+export const NODE_WIDTH = 272;
+export const NODE_HEIGHT = 124;
+const COLUMN_GAP = 40;
 const ROW_GAP = 72;
 
 export interface PlacedNode {
