@@ -8,6 +8,11 @@ import { cn } from '@/lib/utils';
 import { callsBetween } from '../../../../server/analysis';
 import type { ActivityItem } from '../../../../server/activity';
 import type { Session } from '../../../../server/model';
+import { buildSkillUsage } from '../../../../server/skills';
+import { sessionInsights } from '../sessionInsights';
+import { ExchangeCard } from './ExchangeCard';
+import { ItemList } from './ItemList';
+import { SkillUsageList } from './SkillUsageList';
 
 const KIND_LABELS: Record<ActivityItem['kind'], string> = {
     prompt: 'Pedido',
@@ -17,12 +22,19 @@ const KIND_LABELS: Record<ActivityItem['kind'], string> = {
     spawn: 'Delegação',
     waiting: 'Espera',
     message: 'Mensagem entre agentes',
+    skills: 'Leitura de skills',
 };
 
 /** One activity item in full: what it was, when, how long, and its whole text, command and output. */
 export function ItemDetails({ item, session, sessionStart, nameOf }: { item: ActivityItem; session: Session; sessionStart: number; nameOf: NameOf }) {
     const selectAgent = useSessionStore((state) => state.selectAgent);
+    const root = useSessionStore((state) => state.root);
     const Icon = ICONS[item.kind];
+    const insights = root ? sessionInsights(root) : null;
+    const blockId = insights?.blockOfItem.get(item.id);
+    const exchanges = blockId ? (insights?.exchanges.get(blockId) ?? []) : [];
+    const groupItems = item.children ?? [item];
+    const skillUsage = item.tags?.skills?.length ? buildSkillUsage(groupItems) : [];
     const end = (item.at ?? 0) + (item.seconds ?? 0) * 1000;
     const spent = item.at && item.seconds ? callsBetween(session, item.at, end) : null;
     const isText = item.kind === 'reply' || item.kind === 'prompt' || item.kind === 'context';
@@ -49,6 +61,22 @@ export function ItemDetails({ item, session, sessionStart, nameOf }: { item: Act
                 </div>
             )}
 
+            {exchanges.map((exchange, index) => (
+                <ExchangeCard key={index} exchange={exchange} nameOf={nameOf} sessionStart={sessionStart} />
+            ))}
+
+            {skillUsage.length > 0 && (
+                <Section title="Skills">
+                    <SkillUsageList usages={skillUsage} items={groupItems} sessionId={session.id} sessionStart={sessionStart} />
+                </Section>
+            )}
+
+            {item.children && (
+                <Section title={`${item.children.length} chamadas agrupadas`}>
+                    <ItemList items={item.children} sessionId={session.id} startedAt={sessionStart} nameOf={nameOf} />
+                </Section>
+            )}
+
             {item.kind === 'waiting' && (
                 <Section title="Espera">
                     <Row label="Consultas juntadas" value={item.polls ?? 1} />
@@ -60,6 +88,7 @@ export function ItemDetails({ item, session, sessionStart, nameOf }: { item: Act
             {item.kind === 'spawn' && (
                 <Section title="Delegação">
                     {item.detail && <Prose label="Tarefa">{item.detail}</Prose>}
+                    {item.output && <CodeBlock label="Pedido completo">{item.output}</CodeBlock>}
                     {item.childId && (
                         <Button variant="outline" size="sm" className="w-full" onClick={() => selectAgent(item.childId!)}>
                             Ver o subagente
@@ -68,10 +97,8 @@ export function ItemDetails({ item, session, sessionStart, nameOf }: { item: Act
                 </Section>
             )}
 
-            {item.kind === 'message' && <p className="text-sm text-muted-foreground">O conteúdo das mensagens entre agentes do Codex vem criptografado; ficam legíveis quem mandou, para quem e quando.</p>}
-
-            {item.detail && item.kind !== 'spawn' && item.kind !== 'waiting' && item.kind !== 'message' && (isText ? <Prose label="Texto completo">{item.detail}</Prose> : <CodeBlock label="Comando">{item.detail}</CodeBlock>)}
-            {item.output && <CodeBlock label={item.ok === false ? 'Saída (falhou)' : 'Saída'}>{item.output}</CodeBlock>}
+            {item.detail && !['spawn', 'waiting', 'message', 'skills'].includes(item.kind) && (isText ? <Prose label="Texto completo">{item.detail}</Prose> : <CodeBlock label="Comando">{item.detail}</CodeBlock>)}
+            {item.output && item.kind !== 'spawn' && <CodeBlock label={item.ok === false ? 'Saída (falhou)' : 'Saída'}>{item.output}</CodeBlock>}
         </div>
     );
 }

@@ -19,6 +19,8 @@ const EMPTY_STDIN_PATTERN = /write_stdin\(\{[^}]*chars\s*:\s*""/;
 const CHUNK_PATTERN = /"chunk_id"/g;
 const EXIT_CODE_PATTERN = /"exit_code"\s*:\s*(-?\d+)/g;
 const RUNNING_SESSION_PATTERN = /"session_id"\s*:\s*(\d+)/g;
+/** The payload is encrypted, but the header before it is plain text: "Message Type: NEW_TASK". */
+const MESSAGE_TYPE_PATTERN = /Message Type:\s*(\w+)/;
 const RUNNING_CELL_PATTERN = /Script running with cell ID (\d+)/;
 /** Agent actions that only wait for another agent. */
 const WAIT_ACTIONS = new Set(['wait_agent', 'wait']);
@@ -253,7 +255,7 @@ function handleResponseItem(session: Session, { pendingCalls, processAliases }: 
             return;
         }
         case 'agent_message':
-            session.events.push({ at, kind: 'agent-message', from: payload.author, to: payload.recipient });
+            session.events.push({ at, kind: 'agent-message', from: payload.author, to: payload.recipient, messageType: textOf(payload.content).match(MESSAGE_TYPE_PATTERN)?.[1] });
             return;
     }
 }

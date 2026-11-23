@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Section } from '@/components/detail';
 import { Stat } from '@/components/Stat';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,11 @@ import { useSessionStore } from '@/features/session-tree/store/sessionStore';
 import { formatClock } from '@/features/activity/itemPresentation';
 import { formatDuration, formatTokens } from '@/lib/format';
 import { callsBetween } from '../../../../server/analysis';
-import { buildFlow, type FlowBlock, type FlowEdgeKind } from '../../../../server/flow';
+import type { FlowBlock, FlowEdgeKind } from '../../../../server/flow';
+import { buildSkillUsage } from '../../../../server/skills';
+import { sessionInsights } from '../sessionInsights';
+import { ExchangeCard } from './ExchangeCard';
+import { SkillUsageList } from './SkillUsageList';
 import type { Session } from '../../../../server/model';
 import { ItemDetails } from './ItemDetails';
 import { ItemList } from './ItemList';
@@ -30,8 +33,10 @@ const EDGE_LABELS: Record<FlowEdgeKind, { outgoing: string; incoming: string }> 
 /** A block of the flow: its time span, what it cost, the arrows in and out, and its items. */
 export function BlockDetails({ block, root, session, nameOf }: { block: FlowBlock; root: Session; session: Session; nameOf: NameOf }) {
     const select = useSessionStore((state) => state.select);
-    const flow = useMemo(() => buildFlow(root), [root]);
-    const blockById = useMemo(() => new Map(flow.blocks.map((candidate) => [candidate.id, candidate])), [flow]);
+    const { flow, exchanges } = sessionInsights(root);
+    const blockById = new Map(flow.blocks.map((candidate) => [candidate.id, candidate]));
+    const blockExchanges = exchanges.get(block.id) ?? [];
+    const skillUsage = buildSkillUsage(block.items);
     const links = flow.edges.flatMap((edge) => {
         if (edge.fromBlock === block.id) {
             return [{ label: EDGE_LABELS[edge.kind].outgoing, other: blockById.get(edge.toBlock) }];
@@ -67,8 +72,18 @@ export function BlockDetails({ block, root, session, nameOf }: { block: FlowBloc
                 <Stat value={formatTokens(spent.tokens)} label="tokens" />
             </div>
 
+            {blockExchanges.map((exchange, index) => (
+                <ExchangeCard key={index} exchange={exchange} nameOf={nameOf} sessionStart={rootStart} />
+            ))}
+
+            {skillUsage.length > 0 && (
+                <Section title="Skills usadas aqui">
+                    <SkillUsageList usages={skillUsage} items={block.items} sessionId={block.sessionId} sessionStart={rootStart} />
+                </Section>
+            )}
+
             {links.length > 0 && (
-                <Section title="Ligações">
+                <Section title="Ir para a outra ponta">
                     <ul className="space-y-2">
                         {links.map(({ label, other }, index) =>
                             other ? (

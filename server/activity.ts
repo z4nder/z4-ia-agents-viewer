@@ -6,7 +6,7 @@
 import { tagEvent, type EventTags } from './classify';
 import type { Session, SessionEvent } from './model';
 
-export type ActivityKind = 'prompt' | 'context' | 'reply' | 'tool' | 'spawn' | 'waiting' | 'message';
+export type ActivityKind = 'prompt' | 'context' | 'reply' | 'tool' | 'spawn' | 'waiting' | 'message' | 'skills';
 
 export interface ActivityItem {
     id: string;
@@ -24,6 +24,10 @@ export interface ActivityItem {
     tags?: EventTags;
     /** waiting: at least one of the merged polls waited for another agent. */
     waitsForAgent?: boolean;
+    /** message: Codex message type (NEW_TASK, MESSAGE…). */
+    messageType?: string;
+    /** skills: the skill loads and reads collapsed into this item. */
+    children?: ActivityItem[];
 }
 
 const WAIT_FOR_AGENT = new Set(['wait_agent', 'TaskOutput']);
@@ -121,10 +125,10 @@ export function buildActivity(session: Session): ActivityItem[] {
                 items.push({ id, kind: 'tool', at, title: toolTitle(event), detail: event.commands?.join('\n\n') ?? event.text, output: event.output, ok: event.ok, seconds: event.seconds, tags: tagEvent(event) });
                 break;
             case 'spawn':
-                items.push({ id, kind: 'spawn', at, title: `Delegou para ${event.agent ?? 'um subagente'}`, detail: event.task, childId: event.childId, ok: event.ok, tags: tagEvent(event) });
+                items.push({ id, kind: 'spawn', at, title: `Delegou para ${event.agent ?? 'um subagente'}`, detail: event.task, output: event.text, childId: event.childId, ok: event.ok, tags: tagEvent(event) });
                 break;
             case 'agent-message':
-                items.push({ id, kind: 'message', at, title: `Mensagem de ${event.from ?? '?'} para ${event.to ?? '?'}`, detail: event.text, tags: tagEvent(event) });
+                items.push({ id, kind: 'message', at, title: `Mensagem de ${event.from ?? '?'} para ${event.to ?? '?'}`, detail: event.text, messageType: event.messageType, tags: tagEvent(event) });
                 break;
         }
     });

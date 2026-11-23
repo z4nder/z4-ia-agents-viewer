@@ -88,6 +88,7 @@ export const canvasPalettes = {
         shadowOpacity: 0.06,
         waitingOpacity: 0.3,
         agent: '#059669',
+        skill: '#c026d3',
         message: '#2563eb',
     },
     dark: {
@@ -115,6 +116,7 @@ export const canvasPalettes = {
         shadowOpacity: 0,
         waitingOpacity: 0.5,
         agent: '#34d399',
+        skill: '#e879f9',
         message: '#60a5fa',
     },
 } as const;

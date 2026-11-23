@@ -7,9 +7,15 @@ import { Separator } from '@/components/ui/separator';
 import { formatDuration, formatTokens } from '@/lib/format';
 import { TOOL_BADGE_CLASSES, TOOL_LABELS } from '@/lib/toolColors';
 import { cn } from '@/lib/utils';
-import { SKILL_USE_LABELS, tagEvent, type SkillUse } from '../../../../server/classify';
+import { tagEvent } from '../../../../server/classify';
 import { buildLane, type ProcessResult } from '../../../../server/analysis';
+import { buildActivity } from '../../../../server/activity';
 import type { Session } from '../../../../server/model';
+import { buildSkillUsage } from '../../../../server/skills';
+import { buildAgentNames } from '@/lib/agentNames';
+import { sessionInsights } from '../sessionInsights';
+import { DeliveryList } from './DeliveryList';
+import { SkillUsageList } from './SkillUsageList';
 import { findSession, useSessionStore } from '@/features/session-tree/store/sessionStore';
 
 const RESULT_LABELS: Record<ProcessResult, string> = { passed: 'Passou', failed: 'Falhou', inconclusive: 'Inconclusivo' };
@@ -48,30 +54,19 @@ interface Usage {
     details: string[];
 }
 
-/** Skills by name (with how they were used) and MCP servers (with the tools called). */
-function collectUsage(session: Session): { skills: Usage[]; mcp: Usage[] } {
-    const skills = new Map<string, { count: number; uses: Set<SkillUse> }>();
+/** MCP servers with the tools called on each. */
+function collectMcpUsage(session: Session): Usage[] {
     const servers = new Map<string, { count: number; tools: Set<string> }>();
     for (const event of session.events) {
-        const tags = tagEvent(event);
-        if (tags.skill) {
-            const entry = skills.get(tags.skill.name) ?? { count: 0, uses: new Set() };
+        const mcp = tagEvent(event).mcp;
+        if (mcp) {
+            const entry = servers.get(mcp.server) ?? { count: 0, tools: new Set() };
             entry.count += 1;
-            entry.uses.add(tags.skill.use);
-            skills.set(tags.skill.name, entry);
-        }
-        if (tags.mcp) {
-            const entry = servers.get(tags.mcp.server) ?? { count: 0, tools: new Set() };
-            entry.count += 1;
-            entry.tools.add(tags.mcp.tool);
-            servers.set(tags.mcp.server, entry);
+            entry.tools.add(mcp.tool);
+            servers.set(mcp.server, entry);
         }
     }
-    const byCount = (a: Usage, b: Usage) => b.count - a.count;
-    return {
-        skills: [...skills].map(([name, entry]) => ({ name, count: entry.count, details: [...entry.uses].map((use) => SKILL_USE_LABELS[use]) })).sort(byCount),
-        mcp: [...servers].map(([name, entry]) => ({ name, count: entry.count, details: [...entry.tools] })).sort(byCount),
-    };
+    return [...servers].map(([name, entry]) => ({ name, count: entry.count, details: [...entry.tools] })).sort((a, b) => b.count - a.count);
 }
 
 function UsageList({ title, items, dotClass }: { title: string; items: Usage[]; dotClass: string }) {
@@ -101,7 +96,8 @@ function UsageList({ title, items, dotClass }: { title: string; items: Usage[]; 
 
 /** Everything about one agent: stats, tokens, waits, long processes, MCP and skills, tools. */
 export function AgentDetails({ sessionId }: { sessionId: string }) {
-    const session = useSessionStore((state) => findSession(state.root, sessionId));
+    const root = useSessionStore((state) => state.root);
+    const session = findSession(root, sessionId);
     const view = useSessionStore((state) => state.view);
     const setView = useSessionStore((state) => state.setView);
     const lane = useMemo(() => (session ? buildLane(session, 0) : null), [session]);
@@ -118,7 +114,14 @@ export function AgentDetails({ sessionId }: { sessionId: string }) {
     }
     const tools = [...toolCounts].sort((a, b) => b[1] - a[1]);
     const mostUsed = tools[0]?.[1] ?? 1;
-    const usage = collectUsage(session);
+    const mcpUsage = collectMcpUsage(session);
+    const activity = buildActivity(session);
+    const skillUsage = buildSkillUsage(activity);
+    const sessionStart = root?.startedAt ? Date.parse(root.startedAt) : 0;
+    const nameOf = root ? buildAgentNames(root) : () => '';
+    const allDeliveries = root ? sessionInsights(root).deliveries : [];
+    // The leader shows everything the session produced; a subagent only what it made or first mentioned.
+    const deliveries = session.parentId ? allDeliveries.filter((delivery) => (delivery.origin?.sessionId ?? delivery.firstSeen.sessionId) === session.id) : allDeliveries;
     const longProcesses = lane.segments.filter((segment) => segment.kind === 'process').sort((a, b) => b.end - b.start - (a.end - a.start));
 
     return (
@@ -187,12 +190,29 @@ export function AgentDetails({ sessionId }: { sessionId: string }) {
                 </>
             )}
 
-            {(usage.skills.length > 0 || usage.mcp.length > 0) && (
+            {deliveries.length > 0 && (
                 <>
                     <Separator />
-                    <Section title="MCP e skills">
-                        <UsageList title="Skills" items={usage.skills} dotClass="bg-fuchsia-500" />
-                        <UsageList title="Servidores MCP" items={usage.mcp} dotClass="bg-sky-500" />
+                    <Section title={session.parentId ? 'Entregas' : 'Entregas da sessão'}>
+                        <DeliveryList deliveries={deliveries} nameOf={nameOf} sessionStart={sessionStart} />
+                    </Section>
+                </>
+            )}
+
+            {skillUsage.length > 0 && (
+                <>
+                    <Separator />
+                    <Section title="Skills">
+                        <SkillUsageList usages={skillUsage} items={activity} sessionId={session.id} sessionStart={sessionStart} />
+                    </Section>
+                </>
+            )}
+
+            {mcpUsage.length > 0 && (
+                <>
+                    <Separator />
+                    <Section title="Servidores MCP">
+                        <UsageList title="Ferramentas chamadas" items={mcpUsage} dotClass="bg-sky-500" />
                     </Section>
                 </>
             )}

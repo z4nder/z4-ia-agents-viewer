@@ -1,5 +1,6 @@
 import type { ActivityItem } from '../../../server/activity';
 import type { FlowBlock } from '../../../server/flow';
+import { describeSkillUse } from '@/features/activity/itemPresentation';
 import { formatDuration } from '@/lib/format';
 
 /** One line for what happened in a block, in the words the activity feed uses. */
@@ -34,4 +35,12 @@ export function blockCounts(block: FlowBlock): string {
         block.end > block.start && formatDuration(block.end - block.start),
     ];
     return parts.filter(Boolean).join(', ');
+}
+
+/** Skills used in a block, scripts first ("demo-pr: abrir"), then skills only read; empty when none. */
+export function blockSkills(block: FlowBlock): string {
+    const tags = block.items.flatMap((item) => item.tags?.skills ?? []);
+    const scripts = [...new Set(tags.filter((tag) => tag.resource?.kind === 'script').map(describeSkillUse))];
+    const readOnly = [...new Set(tags.map((tag) => tag.name))].filter((name) => !scripts.some((script) => script.startsWith(`${name}:`)));
+    return [...scripts, ...readOnly.map((name) => `leu ${name}`)].join(', ');
 }

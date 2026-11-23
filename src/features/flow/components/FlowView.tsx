@@ -5,7 +5,7 @@ import { buildAgentNames } from '@/lib/agentNames';
 import { CANVAS_FONT, useFontsReady } from '@/lib/canvasFont';
 import { useCanvasPalette, type CanvasPalette } from '@/lib/theme';
 import { buildFlow, type FlowBlock, type FlowEdge } from '../../../../server/flow';
-import { blockCounts, blockTitle } from '../blockText';
+import { blockCounts, blockSkills, blockTitle } from '../blockText';
 
 const COLUMN_WIDTH = 300;
 const COLUMN_GAP = 96;
@@ -13,6 +13,12 @@ const SIDE_PADDING = 32;
 const TOP_PADDING = 16;
 const ROW_GAP = 10;
 const HEIGHTS: Record<FlowBlock['kind'], number> = { work: 60, waiting: 34, spawn: 32, send: 32, receive: 32 };
+/** Work blocks that used a skill get one more line for it. */
+const SKILL_LINE = 18;
+
+function heightOf(block: FlowBlock): number {
+    return HEIGHTS[block.kind] + (block.kind === 'work' && blockSkills(block) ? SKILL_LINE : 0);
+}
 
 interface PlacedBlock {
     block: FlowBlock;
@@ -56,7 +62,7 @@ export function FlowView() {
         const placed = new Map<string, PlacedBlock>();
         let y = TOP_PADDING;
         for (const block of flow.blocks) {
-            const height = HEIGHTS[block.kind];
+            const height = heightOf(block);
             placed.set(block.id, { block, x: SIDE_PADDING + (columnOf.get(block.sessionId) ?? 0) * (COLUMN_WIDTH + COLUMN_GAP), y, height });
             y += height + ROW_GAP;
         }
@@ -116,6 +122,7 @@ export function FlowView() {
                                     {hasFailure && <Circle x={COLUMN_WIDTH - 14} y={14} radius={3.5} fill={palette.failed} listening={false} />}
                                     <Text {...text} x={12} y={11} width={COLUMN_WIDTH - 36} text={blockTitle(block, nameOf)} fontSize={13} fill={palette.text} ellipsis wrap="none" />
                                     <Text {...text} x={12} y={34} width={COLUMN_WIDTH - 24} text={blockCounts(block)} fontSize={11} fill={palette.mutedText} ellipsis wrap="none" />
+                                    {blockSkills(block) && <Text {...text} x={12} y={52} width={COLUMN_WIDTH - 24} text={blockSkills(block)} fontSize={11} fontStyle="500" fill={palette.skill} ellipsis wrap="none" />}
                                 </Group>
                             );
                         }

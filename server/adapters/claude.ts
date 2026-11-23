@@ -134,7 +134,7 @@ async function loadClaudeFile(file: string, fields: Partial<Session>): Promise<L
                     session.events.push({ at, kind: 'reply', text: block.text });
                 } else if (block.type === 'tool_use') {
                     const event: SessionEvent = SPAWN_TOOLS.has(block.name)
-                        ? { at, kind: 'spawn', name: block.name, agent: block.input?.subagent_type ?? 'general-purpose', task: block.input?.description, ok: null }
+                        ? { at, kind: 'spawn', name: block.name, agent: block.input?.subagent_type ?? 'general-purpose', task: block.input?.description, text: block.input?.prompt, ok: null }
                         : { at, kind: 'tool', name: block.name, commands: describeToolInput(block.name, block.input), ok: null, isPoll: isPollCall(block.name, block.input) || undefined };
                     pendingTools.set(block.id, event);
                     if (event.kind === 'spawn') {

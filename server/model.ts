@@ -55,6 +55,8 @@ export interface SessionEvent {
     /** agent-message */
     from?: string;
     to?: string;
+    /** Codex message type, readable even when the payload is encrypted: NEW_TASK, MESSAGE… */
+    messageType?: string;
 }
 
 /** One model call, for the timeline and the average context per call. */

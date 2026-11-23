@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { findSession, useSessionStore } from '@/features/session-tree/store/sessionStore';
 import { buildAgentNames } from '@/lib/agentNames';
@@ -8,7 +9,8 @@ import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { buildActivity, summarizeActivity, type ActivityItem } from '../../../../server/activity';
 import type { Session } from '../../../../server/model';
-import { formatClock, ICONS, ItemBadges, rowTitle, type NameOf } from '../itemPresentation';
+import { groupSkillReading } from '../../../../server/skills';
+import { formatClock, ICONS, isRawCommand, ItemBadges, rowTitle, type NameOf } from '../itemPresentation';
 
 type Filter = 'all' | 'messages' | 'agents' | 'commands' | 'mcp' | 'skills' | 'failures' | 'context';
 
@@ -82,7 +84,7 @@ function ActivityRow({ item, startedAt, isSelected, nameOf, onSelect, onOpenChil
             <button className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-accent/60" onClick={onSelect} aria-pressed={isSelected}>
                 <span className="w-14 shrink-0 pt-0.5 text-right text-xs text-muted-foreground tabular-nums">{item.at ? formatClock(item.at - startedAt) : ''}</span>
                 <Icon className={cn('mt-0.5 size-4 shrink-0 text-muted-foreground', item.kind === 'waiting' && 'text-amber-500', item.ok === false && 'text-destructive')} />
-                <span className={cn('min-w-0 flex-1 line-clamp-2 text-sm', item.kind === 'tool' && 'font-mono text-xs leading-5', item.kind === 'context' && !item.tags?.skill && 'text-muted-foreground')}>
+                <span className={cn('min-w-0 flex-1 line-clamp-2 text-sm', isRawCommand(item) && 'font-mono text-xs leading-5', item.kind === 'context' && !item.tags?.skill && 'text-muted-foreground')}>
                     {rowTitle(item, nameOf)}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
@@ -110,7 +112,11 @@ export function ActivityFeed() {
     const selectedItemId = useSessionStore((state) => (state.selection?.type === 'item' ? state.selection.item.id : null));
     const session = findSession(root, selectedId) ?? root;
     const [filter, setFilter] = useState<Filter>('all');
-    const activity = useMemo(() => (session ? buildActivity(session) : []), [session]);
+    const [groupsReading, setGroupsReading] = useState(true);
+    const activity = useMemo(() => {
+        const items = session ? buildActivity(session) : [];
+        return groupsReading ? groupSkillReading(items) : items;
+    }, [session, groupsReading]);
     const summary = useMemo(() => (session && root ? summarizeActivity(session, root) : null), [session, root]);
 
     if (!root || !session || !summary) {
@@ -155,6 +161,9 @@ export function ActivityFeed() {
                             </ToggleGroupItem>
                         ))}
                     </ToggleGroup>
+                    <Toggle size="sm" variant="outline" pressed={groupsReading} onPressedChange={setGroupsReading} title="Junta as leituras seguidas de arquivos de skill numa linha só">
+                        Agrupar leituras de skill
+                    </Toggle>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-3">
                     <SummaryBlock
