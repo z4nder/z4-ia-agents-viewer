@@ -4,6 +4,35 @@ Visualizador local de sessões de agentes (Claude Code e Codex): a árvore líde
 
 Ferramenta local para explorar sessões de agentes sem enviar os dados para serviços externos.
 
+## Interface
+
+Capturas com sessões e conteúdos fictícios, sem dados pessoais ou de empresas.
+
+**Árvore de agentes com sessões à esquerda e detalhes à direita.**
+
+![Árvore com o líder e dois subagentes, métricas nos cards e painel de detalhes independente](assets/prints/tree.png)
+
+<details>
+<summary>Linha do tempo: trabalho, esperas e processos longos</summary>
+
+![Linha do tempo dos três agentes com espera em âmbar, processo concluído em azul e chamadas ao modelo](assets/prints/timeline.png)
+
+</details>
+
+<details>
+<summary>Fluxo: delegações e mensagens entre agentes</summary>
+
+![Diagrama de fluxo entre líder e subagentes, com a lista de sessões recolhida e detalhes visíveis](assets/prints/flow.png)
+
+</details>
+
+<details>
+<summary>Atividade: comandos, skills e saídas</summary>
+
+![Atividade do agente selecionado com filtros, leituras de skill agrupadas e comando com sua saída no painel à direita](assets/prints/activity.png)
+
+</details>
+
 ## Rodar
 
 ```bash
