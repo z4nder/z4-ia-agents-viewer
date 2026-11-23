@@ -44,7 +44,7 @@ export function Toolbox() {
                 </div>
             </nav>
             {isOpen && (
-                <div className="flex w-[340px] flex-col">
+                <div className={cn('flex max-w-[calc(100vw-3rem)] flex-col', panel === 'sessions' ? 'w-[380px]' : 'w-[340px]')}>
                     <div className="flex h-11 shrink-0 items-center justify-between border-b pr-1.5 pl-3">
                         <h2 className="text-sm font-semibold">{current.label}</h2>
                         <Button variant="ghost" size="icon-sm" aria-label="Recolher painel" title="Recolher painel" onClick={() => toggle(panel)}>

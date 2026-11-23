@@ -8,11 +8,18 @@ Ferramenta local para explorar sessões de agentes sem enviar os dados para serv
 
 ```bash
 bun install
-bun run api      # API só leitura em 127.0.0.1:5175
-bun run dev      # front em http://localhost:5173 (proxy de /api para a API)
+bun run dev      # inicia a API e o front juntos; abra a URL exibida pelo Vite
 ```
 
-A lista da esquerda acha sozinha as sessões em `~/.claude/projects`, `~/.codex/sessions`, `~/.codex-empresa/sessions` e nas gravadas, com filtro por ferramenta, projeto e data. Clique numa para abrir:
+A API só leitura roda em `127.0.0.1:5175`; o front tenta `http://localhost:5173` e usa outra porta livre se necessário. Para iniciar separadamente, rode `bun run api` em um terminal e `bun run dev:web` em outro. O front depende da API para carregar as sessões.
+
+A lista da esquerda acha sozinha as sessões em `~/.claude/projects`, `~/.codex/sessions`, `~/.codex-empresa/sessions` e nas gravadas.
+
+Os cards mostram agentes (incluindo o líder), chamadas ao modelo, tokens totais, duração e todos os modelos usados. Os totais incluem os subagentes; a duração vai do primeiro início ao último evento, sem somar execuções em paralelo. A busca pelo nome ignora maiúsculas e acentos. Em **Filtros**, combine ferramenta, projeto, modelo, período de atualização e limites mínimos/máximos das métricas (duração em minutos). A ordenação aceita nome, atualização, modelos e todas as métricas, nos dois sentidos. A primeira listagem lê os logs para calcular os totais; as próximas reaproveitam o cache dos arquivos que não mudaram.
+
+A busca, os filtros e a ordenação ficam salvos no navegador após recarregar a página. Os filtros ativos aparecem em badges com um **X** para remover cada um; **Limpar todos** remove todos os filtros e a busca, mantendo a ordenação escolhida.
+
+Clique numa sessão para abrir:
 
 - **Árvore:** líder → subagentes, com tokens, chamadas e duração em cada nó.
 - **Linha do tempo:** uma faixa por agente. Âmbar são as esperas (`wait_agent`, `wait`, `write_stdin` vazio, `sleep`), juntas num bloco com o custo em chamadas e tokens; a barra de baixo marca os processos longos (azul passou, vermelho falhou, cinza inconclusivo); traços escuros são as ferramentas e os pontos são as chamadas ao modelo. Roda do mouse dá zoom, arrastar move, duplo clique volta ao todo.
@@ -44,7 +51,8 @@ Os testes de integração usam gravações opcionais em `~/.local/share/agent-vi
 | `server/activity.ts` | Sequência do que cada agente fez, com as esperas juntadas e o resumo (pedido, começo, fim) |
 | `server/classify.ts` | Marca chamadas de MCP (`mcp__srv__tool` no Claude, `srv__tool` no Codex) e uso de skill (`Skill`, skill injetada, leitura do SKILL.md/playbooks, scripts) |
 | `server/flow.ts` | Blocos por agente em ordem de tempo e as setas de delegação, mensagem (envio pareado com o recebimento) e volta |
-| `server/discover.ts` | Acha as sessões raiz de cada ferramenta lendo só o começo do arquivo (cache por mtime) |
+| `server/discover.ts` | Acha as sessões raiz e agrega as métricas dos subagentes, com cache por arquivo |
+| `server/sessionMetrics.ts` | Lê os logs em streaming para contar chamadas, tokens, modelos e intervalo de tempo sem guardar o conteúdo das mensagens |
 | `server/index.ts` | API local só leitura; só abre `.jsonl` dentro das pastas das ferramentas |
 | `src/features/session-list/` | Lista e filtros das sessões |
 | `src/features/session-tree/` | Árvore em react-konva, painel de detalhes e store zustand |

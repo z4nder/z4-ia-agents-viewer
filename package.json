@@ -3,7 +3,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "vite",
+        "dev": "bun scripts/dev.ts",
+        "dev:web": "vite",
         "build": "vite build",
         "api": "bun --watch server/index.ts",
         "session": "bun server/cli.ts",

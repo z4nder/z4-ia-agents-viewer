@@ -1,6 +1,5 @@
 /**
- * Finds the root sessions of each tool and summarizes them from the head of the file
- * (title, folder, start), so the list loads fast even with hundreds of sessions.
+ * Discovers sessions and combines cached per-file metrics across their agents.
  */
 
 import { Glob } from 'bun';
@@ -8,6 +7,7 @@ import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { SessionSource, SessionSummary } from './model';
+import { combineMetrics, readSessionMetrics, type FileMetrics } from './sessionMetrics';
 
 export type { SessionSource, SessionSummary };
 
@@ -30,7 +30,25 @@ export const sourceRoots: SourceRoot[] = [
     { source: 'gravada', dir: recordingsDir, pattern: '*/*.jsonl' },
 ];
 
-const cache = new Map<string, { mtimeMs: number; size: number; summary: SessionSummary | null }>();
+interface Candidate extends SessionSummary {
+    parentId: string | null;
+}
+
+const cache = new Map<string, { mtimeMs: number; size: number; summary: Candidate | null }>();
+const metricsCache = new Map<string, { mtimeMs: number; size: number; value: Promise<FileMetrics> }>();
+
+function metricsFor(file: string, tool: SessionSummary['tool']): Promise<FileMetrics> {
+    const stat = statSync(file);
+    const cached = metricsCache.get(file);
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached.value;
+    const value = readSessionMetrics(file, tool);
+    const entry = { mtimeMs: stat.mtimeMs, size: stat.size, value };
+    metricsCache.set(file, entry);
+    void value.catch(() => {
+        if (metricsCache.get(file) === entry) metricsCache.delete(file);
+    });
+    return value;
+}
 
 function parseLines(text: string): any[] {
     const lines: any[] = [];
@@ -78,22 +96,22 @@ function summarizeClaude(lines: any[]): Partial<SessionSummary> | null {
     };
 }
 
-function summarizeCodex(lines: any[], titles: Map<string, string>): Partial<SessionSummary> | null {
+function summarizeCodex(lines: any[], titles: Map<string, string>): Partial<Candidate> | null {
     const meta = lines.find((entry) => entry.type === 'session_meta')?.payload;
     if (!meta) {
         return null;
     }
     const spawn = meta.source && typeof meta.source === 'object' ? meta.source.subagent?.thread_spawn : undefined;
-    if (meta.parent_thread_id ?? spawn?.parent_thread_id) {
-        // Subagents show up inside their leader's tree, not in the list.
-        return null;
-    }
     const firstPrompt =
         lines
             .filter((entry) => entry.type === 'response_item' && entry.payload?.type === 'message' && entry.payload.role === 'user')
             .map((entry) => promptTitle(firstText(entry.payload.content)))
             .find((title) => title && !title.startsWith('# AGENTS.md')) ?? null;
-    return { tool: 'codex', id: meta.id, title: titles.get(meta.id) ?? firstPrompt, cwd: meta.cwd ?? null, startedAt: meta.timestamp ?? lines[0]?.timestamp ?? null };
+    return {
+        tool: 'codex', id: meta.id, parentId: meta.parent_thread_id ?? spawn?.parent_thread_id ?? null,
+        title: titles.get(meta.id) ?? firstPrompt, cwd: meta.cwd ?? null,
+        startedAt: meta.timestamp ?? lines[0]?.timestamp ?? null,
+    };
 }
 
 /** Codex keeps the thread names in <home>/session_index.jsonl. */
@@ -111,16 +129,17 @@ async function readCodexTitles(sessionsDir: string): Promise<Map<string, string>
     return titles;
 }
 
-async function summarize(file: string, source: SessionSource, codexTitles: Map<string, string>): Promise<SessionSummary | null> {
+async function summarize(file: string, source: SessionSource, codexTitles: Map<string, string>): Promise<Candidate | null> {
     const stat = statSync(file);
     const cached = cache.get(file);
     if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
-        return cached.summary;
+        const summary = cached.summary;
+        return summary ? { ...summary, source, title: codexTitles.get(summary.id) ?? summary.title } : null;
     }
     const lines = parseLines(await Bun.file(file).slice(0, HEAD_BYTES).text());
     const isCodex = lines[0]?.type === 'session_meta';
-    const partial = isCodex ? summarizeCodex(lines, codexTitles) : summarizeClaude(lines);
-    const summary: SessionSummary | null = partial
+    const partial: Partial<Candidate> | null = isCodex ? summarizeCodex(lines, codexTitles) : summarizeClaude(lines);
+    const summary: Candidate | null = partial
         ? {
               file,
               source,
@@ -131,6 +150,12 @@ async function summarize(file: string, source: SessionSource, codexTitles: Map<s
               startedAt: partial.startedAt ?? null,
               updatedAt: new Date(stat.mtimeMs).toISOString(),
               sizeBytes: stat.size,
+              parentId: partial.parentId ?? null,
+              agentCount: 1,
+              callCount: 0,
+              totalTokens: 0,
+              durationMs: null,
+              models: [],
           }
         : null;
     cache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, summary });
@@ -139,7 +164,7 @@ async function summarize(file: string, source: SessionSource, codexTitles: Map<s
 
 /** All root sessions, most recently updated first. */
 export async function listSessions(roots: SourceRoot[] = sourceRoots): Promise<SessionSummary[]> {
-    const summaries: SessionSummary[] = [];
+    const candidates: Candidate[] = [];
     for (const root of roots) {
         if (!existsSync(root.dir)) {
             continue;
@@ -148,9 +173,63 @@ export async function listSessions(roots: SourceRoot[] = sourceRoots): Promise<S
         for await (const file of new Glob(root.pattern).scan({ cwd: root.dir, absolute: true })) {
             const summary = await summarize(file, root.source, codexTitles);
             if (summary) {
-                summaries.push(summary);
+                candidates.push(summary);
             }
         }
+    }
+    // Scan each log once, with bounded concurrency instead of reloading every tree.
+    const files = [...new Map(candidates.map((session) => [session.file, session])).values()];
+    const own = new Map<string, FileMetrics>();
+    let cursor = 0;
+    await Promise.all(Array.from({ length: Math.min(4, files.length) }, async () => {
+        while (cursor < files.length) {
+            const session = files[cursor++]!;
+            own.set(session.file, await metricsFor(session.file, session.tool));
+        }
+    }));
+    const children = new Map<string, Candidate[]>();
+    const key = (session: Candidate, id: string) => `${session.source}:${session.tool}:${id}`;
+    for (const session of candidates) {
+        if (session.parentId) {
+            const parentKey = key(session, session.parentId);
+            const siblings = children.get(parentKey) ?? [];
+            siblings.push(session);
+            children.set(parentKey, siblings);
+        }
+    }
+
+    const summaries: SessionSummary[] = [];
+    for (const root of candidates.filter((session) => !session.parentId)) {
+        const parts: FileMetrics[] = [];
+        const visited = new Set<string>();
+        let updatedAt = root.updatedAt;
+        function collect(session: Candidate) {
+            if (visited.has(session.file)) return;
+            visited.add(session.file);
+            parts.push(own.get(session.file)!);
+            if (session.updatedAt > updatedAt) updatedAt = session.updatedAt;
+            for (const child of children.get(key(session, session.id)) ?? []) collect(child);
+        }
+        collect(root);
+        if (root.tool === 'claude') {
+            const dir = root.file.replace(/\.jsonl$/, '') + '/subagents';
+            if (existsSync(dir)) {
+                for await (const file of new Glob('agent-*.jsonl').scan({ cwd: dir, absolute: true })) {
+                    if (visited.has(file)) continue;
+                    visited.add(file);
+                    parts.push(await metricsFor(file, 'claude'));
+                    const changed = new Date(statSync(file).mtimeMs).toISOString();
+                    if (changed > updatedAt) updatedAt = changed;
+                }
+            }
+        }
+        const metrics = combineMetrics(parts);
+        const { parentId: _, ...summary } = root;
+        summaries.push({
+            ...summary, updatedAt, agentCount: visited.size,
+            callCount: metrics.callCount, totalTokens: metrics.totalTokens, models: metrics.models,
+            durationMs: metrics.start === null || metrics.end === null ? null : metrics.end - metrics.start,
+        });
     }
     return summaries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }

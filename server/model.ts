@@ -15,6 +15,13 @@ export interface SessionSummary {
     startedAt: string | null;
     updatedAt: string;
     sizeBytes: number;
+    /** Includes the leader and every descendant. */
+    agentCount: number;
+    callCount: number;
+    totalTokens: number;
+    /** Elapsed time across the entire tree; overlapping agents are not added together. */
+    durationMs: number | null;
+    models: string[];
 }
 
 export type SessionStatus = 'running' | 'finished' | 'failed' | 'unknown';
