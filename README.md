@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" alt="Logo do Z4 IA Agents Viewer: um líder conectado a dois subagentes" width="88" height="88" />
+
 # z4-ia-agents-viwer
 
 Visualizador local de sessões de agentes (Claude Code e Codex): a árvore líder → subagentes, com tokens, chamadas ao modelo, ferramentas e duração de cada um.
