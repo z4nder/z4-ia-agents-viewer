@@ -1,103 +1,102 @@
-<img src="assets/logo.svg" alt="Logo do Z4 IA Agents Viewer: um líder conectado a dois subagentes" width="88" height="88" />
+<img src="assets/logo.svg" alt="Z4 IA Agents Viewer logo: a leader connected to two subagents" width="88" height="88" />
 
 # z4-ia-agents-viwer
 
-Visualizador local de sessões de agentes (Claude Code e Codex): a árvore líder → subagentes, com tokens, chamadas ao modelo, ferramentas e duração de cada um.
+A local session viewer for Claude Code and Codex: explore the leader → subagent tree, with tokens, model calls, tools, and duration for each agent.
 
-Ferramenta local para explorar sessões de agentes sem enviar os dados para serviços externos.
+Explore agent sessions locally without sending your data to external services.
 
 ## Interface
 
-Capturas com sessões e conteúdos fictícios, sem dados pessoais ou de empresas.
+These screenshots use fictional sessions and content, with no personal or company data. They show the current Portuguese-language interface.
 
-**Árvore de agentes com sessões à esquerda e detalhes à direita.**
+**Agent tree with sessions on the left and details on the right.**
 
-![Árvore com o líder e dois subagentes, métricas nos cards e painel de detalhes independente](assets/prints/tree.png)
+![Agent tree showing a leader and two subagents, session cards with metrics, and an independent details panel](assets/prints/tree.png)
 
 <details>
-<summary>Linha do tempo: trabalho, esperas e processos longos</summary>
+<summary>Timeline: work, waiting, and long-running processes</summary>
 
-![Linha do tempo dos três agentes com espera em âmbar, processo concluído em azul e chamadas ao modelo](assets/prints/timeline.png)
+![Timeline for three agents, with waiting in amber, a completed process in blue, and model calls](assets/prints/timeline.png)
 
 </details>
 
 <details>
-<summary>Fluxo: delegações e mensagens entre agentes</summary>
+<summary>Flow: delegation and messages between agents</summary>
 
-![Diagrama de fluxo entre líder e subagentes, com a lista de sessões recolhida e detalhes visíveis](assets/prints/flow.png)
+![Sequence diagram showing a leader and subagents, with the session list collapsed and details visible](assets/prints/flow.png)
 
 </details>
 
 <details>
-<summary>Atividade: comandos, skills e saídas</summary>
+<summary>Activity: commands, skills, and outputs</summary>
 
-![Atividade do agente selecionado com filtros, leituras de skill agrupadas e comando com sua saída no painel à direita](assets/prints/activity.png)
+![Selected agent activity with filters, grouped skill reads, and a command with its output in the right-hand panel](assets/prints/activity.png)
 
 </details>
 
-## Rodar
+## Getting started
 
 ```bash
 bun install
-bun run dev      # inicia a API e o front juntos; abra a URL exibida pelo Vite
+bun run dev      # starts the API and frontend together; open the URL printed by Vite
 ```
 
-A API só leitura roda em `127.0.0.1:5175`; o front tenta `http://localhost:5173` e usa outra porta livre se necessário. Para iniciar separadamente, rode `bun run api` em um terminal e `bun run dev:web` em outro. O front depende da API para carregar as sessões.
+The read-only API runs at `127.0.0.1:5175`. The frontend tries `http://localhost:5173` and uses another available port if needed. To run them separately, use `bun run api` in one terminal and `bun run dev:web` in another. The frontend needs the API to load sessions.
 
-A lista da esquerda acha sozinha as sessões em `~/.claude/projects`, `~/.codex/sessions`, `~/.codex-empresa/sessions` e nas gravadas.
+The left-hand list automatically discovers sessions in `~/.claude/projects`, `~/.codex/sessions`, `~/.codex-empresa/sessions`, and the recordings directory.
 
-Os cards mostram agentes (incluindo o líder), chamadas ao modelo, tokens totais, duração e todos os modelos usados. Os totais incluem os subagentes; a duração vai do primeiro início ao último evento, sem somar execuções em paralelo. A busca pelo nome ignora maiúsculas e acentos. Em **Filtros**, combine ferramenta, projeto, modelo, período de atualização e limites mínimos/máximos das métricas (duração em minutos). A ordenação aceita nome, atualização, modelos e todas as métricas, nos dois sentidos. A primeira listagem lê os logs para calcular os totais; as próximas reaproveitam o cache dos arquivos que não mudaram.
+Session cards show the number of agents (including the leader), model calls, total tokens, duration, and all models used. Totals include subagents. Duration spans the earliest start to the latest event, without adding overlapping execution times. Session name search ignores case and accents. Filters can combine tool, project, model, update date range, and minimum/maximum metric values (duration is entered in minutes). Sort by name, last update, models, or any metric, in either direction. The first listing reads the logs to calculate totals; subsequent requests reuse cached results for unchanged files.
 
-A busca, os filtros e a ordenação ficam salvos no navegador após recarregar a página. Os filtros ativos aparecem em badges com um **X** para remover cada um; **Limpar todos** remove todos os filtros e a busca, mantendo a ordenação escolhida.
+Search, filters, and sorting are saved in the browser across page reloads. Active filters appear as badges with an **X** to remove each one. **Clear all** removes all filters and the search query while keeping the selected sort order.
 
-Clique numa sessão para abrir:
+Open a session to explore:
 
-- **Árvore:** líder → subagentes, com tokens, chamadas e duração em cada nó.
-- **Linha do tempo:** uma faixa por agente. Âmbar são as esperas (`wait_agent`, `wait`, `write_stdin` vazio, `sleep`), juntas num bloco com o custo em chamadas e tokens; a barra de baixo marca os processos longos (azul passou, vermelho falhou, cinza inconclusivo); traços escuros são as ferramentas e os pontos são as chamadas ao modelo. Roda do mouse dá zoom, arrastar move, duplo clique volta ao todo.
+- **Tree:** leader → subagents, with tokens, calls, and duration on each node.
+- **Timeline:** one lane per agent. Amber blocks group waiting calls (`wait_agent`, `wait`, empty `write_stdin`, and `sleep`) and show their cost in model calls and tokens. A lower bar marks long-running processes: blue for passed, red for failed, and gray for inconclusive. Dark ticks represent tools, and dots represent model calls. Use the mouse wheel to zoom, drag to pan, and double-click to fit the whole session.
+- **Flow:** a sequence diagram with one column per agent. Blocks run from top to bottom in time order. Arrows show delegation (green), messages (blue), and returns when subagents finish (dashed green). Double-click a block to open that agent's activity.
+- **Activity:** everything the selected agent did, in order: the request, replies, commands and their outputs (click to inspect), delegations, messages between agents, and waits. The top section summarizes what the agent received and how it started and finished. Filter by messages, agent communication (delegations, sent and received messages, and waits for another agent), commands, MCP, skills, failures, or context. MCP calls and skill usage have badges identifying the MCP server or skill and whether the skill was invoked, loaded, read, or had a script run. Double-click a tree card to open this view.
 
-- **Fluxo:** diagrama de sequência, uma coluna por agente. Os blocos descem em ordem de tempo e as setas mostram cada delegação (verde), mensagem (azul) e a volta quando o subagente termina (verde tracejada). Duplo clique num bloco abre a atividade do agente.
-- **Atividade:** o que o agente selecionado fez, em ordem: o pedido, as respostas, cada comando com a saída (clique para abrir), delegações, mensagens entre agentes e esperas. No topo, o que ele recebeu e como começou e terminou. Filtros por mensagens, entre agentes (delegações, mensagens enviadas e recebidas, esperas por outro agente), comandos, MCP, skills, falhas e contexto; chamadas de MCP e uso de skill ganham etiqueta (servidor MCP; skill e se foi invocada, carregada, lida ou teve script rodado). Duplo clique num cartão da árvore abre aqui.
+Direct link: `http://localhost:5173/?file=<path-to-jsonl>&view=tree|timeline|flow|activity&agent=<agent-id>`.
 
-Link direto: `http://localhost:5173/?file=<caminho do .jsonl>&view=tree|timeline|activity&agent=<id do agente>`.
+## Workspace layout
 
-## Organização da tela
+Sessions stay on the left and selection details on the right, in independent panels that can be collapsed using the top buttons. The **Tree**, **Timeline**, **Flow**, and **Activity** tabs are in the top navigation bar. Keys **1–4** also switch views when you are not typing in a text field.
 
-As sessões ficam à esquerda e os detalhes da seleção à direita, em painéis independentes que podem ser recolhidos pelos botões do topo. As abas **Árvore**, **Linha do tempo**, **Fluxo** e **Atividade** ficam na barra superior; as teclas **1 a 4** também mudam a visualização, fora dos campos de texto.
+Drag the divider on the left edge of the details panel to adjust its width. With the divider focused, use the arrow keys to resize, **Shift** for larger steps, and **Home/End** for the limits. Double-click to restore the default width. On smaller screens, the panels open over the workspace and can be closed with **Esc**.
 
-Arraste a divisória à esquerda dos detalhes para ajustar a largura. Com ela em foco, use as setas para ajustar, **Shift** para passos maiores e **Home/End** para os limites; duplo clique restaura a largura padrão. Em telas pequenas, os painéis abrem sobre a visualização e podem ser fechados com **Esc**.
+The browser remembers collapsed panels, details width, the open session, the current view, and the selected agent, item, block, or timeline segment. It also restores the tree's zoom and position, the timeline range, activity filters, and scroll positions in the flow, activity, and details panels. After a page reload, saved references are resolved against the logs again; session contents are not saved in browser storage. Explicit links take priority over the remembered session.
 
-O navegador lembra os painéis recolhidos, a largura dos detalhes, a sessão aberta, a visualização e o agente, item, bloco ou trecho selecionado. Também restaura o zoom e a posição da árvore, o intervalo da linha do tempo, os filtros da atividade e a rolagem de fluxo, atividade e detalhes. As referências são resolvidas novamente nos logs após F5; o conteúdo das sessões não é salvo no armazenamento do navegador. Links explícitos têm prioridade sobre a sessão lembrada.
-
-## CLI e testes
+## CLI and tests
 
 ```bash
-bun run session ARQUIVO.jsonl          # árvore no terminal
-bun run session ARQUIVO.jsonl --json   # modelo normalizado
-bun run test                           # adaptadores contra as sessões gravadas
+bun run session FILE.jsonl          # print the session tree in the terminal
+bun run session FILE.jsonl --json   # output the normalized model
+bun run test                       # test adapters against recorded sessions
 bun run typecheck
 ```
 
-Os testes de integração usam gravações opcionais em `~/.local/share/agent-viewer/recordings` (`SESSIONS_DIR` muda a pasta). Use somente dados fictícios nos exemplos. Sem os arquivos esperados, esses testes são pulados.
+Integration tests use optional recordings in `~/.local/share/agent-viewer/recordings`. Set `SESSIONS_DIR` to use a different directory. Only use fictional data in shared examples. Tests that require missing recording files are skipped.
 
-## Estrutura
+## Project structure
 
-| Onde | O quê |
+| Path | Purpose |
 |---|---|
-| `server/model.ts` | Modelo comum (`Session`, `Tokens`, `SessionEvent`), só tipos e funções puras, usado também pelo front |
-| `server/adapters/codex.ts` | JSONL do Codex → modelo; filhos por `parent_thread_id` |
-| `server/adapters/claude.ts` | JSONL do Claude → modelo; subagentes em `<sessionId>/subagents/`, tokens juntados por `message.id` |
-| `server/analysis.ts` | Linha do tempo: blocos de espera, processos longos (cell → wait → write_stdin no Codex) e estatísticas por agente |
-| `server/activity.ts` | Sequência do que cada agente fez, com as esperas juntadas e o resumo (pedido, começo, fim) |
-| `server/classify.ts` | Marca chamadas de MCP (`mcp__srv__tool` no Claude, `srv__tool` no Codex) e uso de skill (`Skill`, skill injetada, leitura do SKILL.md/playbooks, scripts) |
-| `server/flow.ts` | Blocos por agente em ordem de tempo e as setas de delegação, mensagem (envio pareado com o recebimento) e volta |
-| `server/discover.ts` | Acha as sessões raiz e agrega as métricas dos subagentes, com cache por arquivo |
-| `server/sessionMetrics.ts` | Lê os logs em streaming para contar chamadas, tokens, modelos e intervalo de tempo sem guardar o conteúdo das mensagens |
-| `server/index.ts` | API local só leitura; só abre `.jsonl` dentro das pastas das ferramentas |
-| `src/features/session-list/` | Lista e filtros das sessões |
-| `src/features/workspace/` | Barra de visualizações, painéis independentes, resize e preferências de layout |
-| `src/features/session-tree/` | Árvore em react-konva, painel de detalhes e store zustand |
-| `src/features/timeline/` | Linha do tempo em react-konva |
-| `src/features/activity/` | Feed de atividade por agente |
-| `src/features/flow/` | Diagrama de sequência entre agentes |
+| `server/model.ts` | Shared model (`Session`, `Tokens`, `SessionEvent`): types and pure functions, also used by the frontend |
+| `server/adapters/codex.ts` | Codex JSONL → shared model; links children through `parent_thread_id` |
+| `server/adapters/claude.ts` | Claude JSONL → shared model; loads subagents from `<sessionId>/subagents/` and deduplicates token usage by `message.id` |
+| `server/analysis.ts` | Timeline analysis: waiting blocks, long-running processes (Codex cell → wait → write_stdin), and per-agent statistics |
+| `server/activity.ts` | Each agent's activity in order, with grouped waits and a summary of its request, start, and result |
+| `server/classify.ts` | Tags MCP calls (`mcp__srv__tool` in Claude, `srv__tool` in Codex) and skill usage (`Skill`, injected skill context, SKILL.md/playbook reads, and scripts) |
+| `server/flow.ts` | Chronological blocks per agent and arrows for delegation, messages (matching sends to receipts), and returns |
+| `server/discover.ts` | Discovers root sessions and aggregates subagent metrics, with per-file caching |
+| `server/sessionMetrics.ts` | Streams logs to count calls, tokens, models, and elapsed time without retaining message contents |
+| `server/index.ts` | Local read-only API; only opens `.jsonl` files inside the tools' session directories |
+| `src/features/session-list/` | Session list and filters |
+| `src/features/workspace/` | View navigation, independent panels, resizing, and layout preferences |
+| `src/features/session-tree/` | Agent tree built with react-konva and session state managed with Zustand |
+| `src/features/timeline/` | Timeline built with react-konva |
+| `src/features/activity/` | Per-agent activity feed |
+| `src/features/flow/` | Sequence diagram showing communication between agents |
 
-O conteúdo das sessões é dado, não instrução: a página mostra texto e nunca executa nada.
+Session contents are treated as data, never as instructions: the app displays text and does not execute commands from the logs.
