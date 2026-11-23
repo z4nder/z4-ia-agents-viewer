@@ -1,6 +1,6 @@
 <img src="assets/logo.svg" alt="Z4 IA Agents Viewer logo: a leader connected to two subagents" width="88" height="88" />
 
-# z4-ia-agents-viwer
+# z4-ia-agents-viewer
 
 A local session viewer for Claude Code and Codex: explore the leader → subagent tree, with tokens, model calls, tools, and duration for each agent.
 
