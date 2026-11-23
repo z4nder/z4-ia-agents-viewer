@@ -29,6 +29,14 @@ Clique numa sessão para abrir:
 
 Link direto: `http://localhost:5173/?file=<caminho do .jsonl>&view=tree|timeline|activity&agent=<id do agente>`.
 
+## Organização da tela
+
+As sessões ficam à esquerda e os detalhes da seleção à direita, em painéis independentes que podem ser recolhidos pelos botões do topo. As abas **Árvore**, **Linha do tempo**, **Fluxo** e **Atividade** ficam na barra superior; as teclas **1 a 4** também mudam a visualização, fora dos campos de texto.
+
+Arraste a divisória à esquerda dos detalhes para ajustar a largura. Com ela em foco, use as setas para ajustar, **Shift** para passos maiores e **Home/End** para os limites; duplo clique restaura a largura padrão. Em telas pequenas, os painéis abrem sobre a visualização e podem ser fechados com **Esc**.
+
+O navegador lembra os painéis recolhidos, a largura dos detalhes, a sessão aberta, a visualização e o agente, item, bloco ou trecho selecionado. Também restaura o zoom e a posição da árvore, o intervalo da linha do tempo, os filtros da atividade e a rolagem de fluxo, atividade e detalhes. As referências são resolvidas novamente nos logs após F5; o conteúdo das sessões não é salvo no armazenamento do navegador. Links explícitos têm prioridade sobre a sessão lembrada.
+
 ## CLI e testes
 
 ```bash
@@ -55,6 +63,7 @@ Os testes de integração usam gravações opcionais em `~/.local/share/agent-vi
 | `server/sessionMetrics.ts` | Lê os logs em streaming para contar chamadas, tokens, modelos e intervalo de tempo sem guardar o conteúdo das mensagens |
 | `server/index.ts` | API local só leitura; só abre `.jsonl` dentro das pastas das ferramentas |
 | `src/features/session-list/` | Lista e filtros das sessões |
+| `src/features/workspace/` | Barra de visualizações, painéis independentes, resize e preferências de layout |
 | `src/features/session-tree/` | Árvore em react-konva, painel de detalhes e store zustand |
 | `src/features/timeline/` | Linha do tempo em react-konva |
 | `src/features/activity/` | Feed de atividade por agente |

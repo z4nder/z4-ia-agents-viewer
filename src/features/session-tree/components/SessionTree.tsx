@@ -7,10 +7,17 @@ import { useCanvasPalette, type CanvasPalette } from '@/lib/theme';
 import { treeTokens, type Session } from '../../../../server/model';
 import { layoutTree, NODE_HEIGHT, NODE_WIDTH } from '../layout';
 import { useSessionStore } from '../store/sessionStore';
+import { useSessionViewState } from '@/features/workspace/useSessionViewState';
 
 const ZOOM_STEP = 1.1;
 const PADDING = 16;
 const STAT_COLUMN = (NODE_WIDTH - PADDING * 2) / 3;
+
+interface TreeViewport { x: number; y: number; scale: number }
+function isViewport(value: unknown): value is TreeViewport {
+    const viewport = value as TreeViewport | null;
+    return !!viewport && Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && Number.isFinite(viewport.scale) && viewport.scale >= 0.1 && viewport.scale <= 6;
+}
 
 function statusColor(session: Session, palette: CanvasPalette): string | null {
     switch (session.status) {
@@ -81,6 +88,7 @@ export function SessionTree() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [size, setSize] = useState({ width: 0, height: 0 });
     const root = useSessionStore((state) => state.root);
+    const [viewport, setViewport] = useSessionViewState(root?.file, 'treeViewport', { x: 48, y: 48, scale: 1 }, isViewport);
     const selectedId = useSessionStore((state) => state.selectedId);
     const selectAgent = useSessionStore((state) => state.selectAgent);
     const setView = useSessionStore((state) => state.setView);
@@ -111,17 +119,23 @@ export function SessionTree() {
             return;
         }
         const oldScale = stage.scaleX();
-        const scale = event.evt.deltaY < 0 ? oldScale * ZOOM_STEP : oldScale / ZOOM_STEP;
+        const scale = Math.max(0.1, Math.min(6, event.evt.deltaY < 0 ? oldScale * ZOOM_STEP : oldScale / ZOOM_STEP));
         const anchor = { x: (pointer.x - stage.x()) / oldScale, y: (pointer.y - stage.y()) / oldScale };
         stage.scale({ x: scale, y: scale });
         stage.position({ x: pointer.x - anchor.x * scale, y: pointer.y - anchor.y * scale });
+        setViewport({ x: stage.x(), y: stage.y(), scale });
     }
 
     return (
         <div ref={containerRef} className="h-full w-full overflow-hidden" style={{ background: palette.background }}>
             {!root && <p className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">Escolha uma sessão na lista para ver os agentes.</p>}
             {root && size.width > 0 && (
-                <Stage key={fontsReady ? 'fonts' : 'fallback'} width={size.width} height={size.height} draggable onWheel={handleWheel} x={48} y={48}>
+                <Stage key={fontsReady ? 'fonts' : 'fallback'} width={size.width} height={size.height} draggable onWheel={handleWheel}
+                    x={viewport.x} y={viewport.y} scaleX={viewport.scale} scaleY={viewport.scale}
+                    onDragEnd={(event) => {
+                        const stage = event.target.getStage();
+                        if (stage && event.target === stage) setViewport({ x: stage.x(), y: stage.y(), scale: stage.scaleX() });
+                    }}>
                     <Layer>
                         {nodes.map(({ session, x, y, parent }) => {
                             if (!parent) {

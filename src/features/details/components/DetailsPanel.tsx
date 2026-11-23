@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, MousePointer2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { findSession, useSessionStore } from '@/features/session-tree/store/sessionStore';
@@ -18,7 +18,13 @@ export function DetailsPanel() {
     const sessionStart = root?.startedAt ? Date.parse(root.startedAt) : 0;
 
     if (!root || !selection || !session) {
-        return <p className="p-4 text-sm text-muted-foreground">Abra uma sessão e clique em qualquer agente, bloco ou item para ver os detalhes aqui.</p>;
+        return (
+            <div className="flex h-full flex-col items-center justify-center px-7 py-12 text-center">
+                <MousePointer2 className="mb-4 size-7 stroke-1 text-muted-foreground/60" aria-hidden="true" />
+                <h3 className="text-sm font-medium">Detalhes da seleção</h3>
+                <p className="mt-2 max-w-64 text-xs leading-relaxed text-muted-foreground">Selecione um agente, trecho ou evento. Os detalhes acompanham sua seleção em qualquer visualização.</p>
+            </div>
+        );
     }
 
     return (

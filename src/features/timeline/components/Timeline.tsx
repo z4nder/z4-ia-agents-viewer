@@ -7,6 +7,7 @@ import { useCanvasPalette, type CanvasPalette } from '@/lib/theme';
 import { buildTimeline, type ProcessResult, type Segment } from '../../../../server/analysis';
 import { formatElapsed, pickTickStep } from '../timeScale';
 import { TimelineLegend } from './TimelineLegend';
+import { useSessionViewState } from '@/features/workspace/useSessionViewState';
 
 const LABEL_WIDTH = 232;
 const ROW_HEIGHT = 52;
@@ -17,6 +18,11 @@ const MIN_SPAN_MS = 2_000;
 interface Range {
     start: number;
     end: number;
+}
+
+function isRange(value: unknown): value is Range | null {
+    const range = value as Range | null;
+    return value === null || !!range && Number.isFinite(range.start) && Number.isFinite(range.end) && range.end > range.start;
 }
 
 export function processColor(result: ProcessResult | undefined, palette: CanvasPalette): string {
@@ -50,10 +56,8 @@ export function Timeline() {
         const padding = (timeline.end - timeline.start) * 0.02;
         return { start: timeline.start - padding, end: timeline.end + padding };
     }, [timeline]);
-    const [range, setRange] = useState<Range | null>(null);
+    const [range, setRange] = useSessionViewState<Range | null>(root?.file, 'timelineRange', null, isRange);
     const visible = range ?? fullRange;
-
-    useLayoutEffect(() => setRange(null), [fullRange]);
 
     useLayoutEffect(() => {
         const container = containerRef.current;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { useToolboxStore } from '@/features/toolbox/store/toolboxStore';
+import { useWorkspaceStore } from '../../workspace/store/workspaceStore';
+import { readSessionNavigation, restoreSelection, saveSessionNavigation, selectionReference, type SelectionReference } from './sessionNavigation';
 import type { ActivityItem } from '../../../../server/activity';
 import type { Segment } from '../../../../server/analysis';
 import type { FlowBlock } from '../../../../server/flow';
@@ -21,38 +22,60 @@ interface SessionState {
     selectedId: string | null;
     view: SessionView;
     error: string | null;
-    load: (file: string) => Promise<void>;
-    /** Selects something and reveals it in the details tool (unless `reveal` is false). */
+    isLoading: boolean;
+    load: (file: string, restore?: SelectionReference | null) => Promise<void>;
+    /** Selects something and marks the details as updated (unless `reveal` is false). */
     select: (selection: Selection, reveal?: boolean) => void;
     selectAgent: (sessionId: string, reveal?: boolean) => void;
     setView: (view: SessionView) => void;
 }
 
+const savedNavigation = readSessionNavigation();
+let loadVersion = 0;
+
 export const useSessionStore = create<SessionState>((set, get) => ({
     root: null,
     selection: null,
     selectedId: null,
-    view: 'tree',
+    view: savedNavigation.view,
     error: null,
-    load: async (file) => {
-        set({ error: null });
-        const response = await fetch(`/api/session?file=${encodeURIComponent(file)}`);
-        const body = await response.json();
-        if (!response.ok) {
-            set({ error: body.error ?? 'Falha ao carregar a sessão', root: null });
-            return;
+    isLoading: false,
+    load: async (file, restore = null) => {
+        const version = ++loadVersion;
+        set({ error: null, isLoading: true });
+        try {
+            const response = await fetch(`/api/session?file=${encodeURIComponent(file)}`);
+            const body = await response.json() as Session & { error?: string };
+            if (version !== loadVersion) return;
+            if (!response.ok) throw new Error(body.error ?? 'Falha ao carregar a sessão');
+            const selection = restoreSelection(body, restore);
+            set({ root: body, selection, selectedId: selection.sessionId });
+            useWorkspaceStore.getState().notifySelection();
+            useWorkspaceStore.getState().setMobilePanel(null);
+        } catch (error) {
+            if (version === loadVersion) set({ error: error instanceof Error ? error.message : 'Não foi possível carregar a sessão. Verifique a API e tente novamente.' });
+        } finally {
+            if (version === loadVersion) set({ isLoading: false });
         }
-        set({ root: body, selection: { type: 'agent', sessionId: body.id }, selectedId: body.id });
     },
     select: (selection, reveal = true) => {
         set({ selection, selectedId: selection.sessionId });
         if (reveal) {
-            useToolboxStore.getState().revealDetails();
+            useWorkspaceStore.getState().notifySelection();
         }
     },
     selectAgent: (sessionId, reveal = true) => get().select({ type: 'agent', sessionId }, reveal),
     setView: (view) => set({ view }),
 }));
+
+useSessionStore.subscribe((state, previous) => {
+    if (state.root === previous.root && state.selection === previous.selection && state.view === previous.view) return;
+    saveSessionNavigation({
+        file: state.root?.file ?? savedNavigation.file,
+        view: state.view,
+        selection: state.root ? selectionReference(state.selection) : savedNavigation.selection,
+    });
+});
 
 export function findSession(root: Session | null, id: string | null): Session | null {
     if (!root || !id) {

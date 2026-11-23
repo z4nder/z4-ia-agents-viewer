@@ -6,6 +6,7 @@ import { CANVAS_FONT, useFontsReady } from '@/lib/canvasFont';
 import { useCanvasPalette, type CanvasPalette } from '@/lib/theme';
 import { buildFlow, type FlowBlock, type FlowEdge } from '../../../../server/flow';
 import { blockCounts, blockSkills, blockTitle } from '../blockText';
+import { useRememberedScroll } from '@/features/workspace/useSessionViewState';
 
 const COLUMN_WIDTH = 300;
 const COLUMN_GAP = 96;
@@ -44,6 +45,7 @@ function edgeStyle(edge: FlowEdge, palette: CanvasPalette): { color: string; das
  */
 export function FlowView() {
     const root = useSessionStore((state) => state.root);
+    const scroll = useRememberedScroll<HTMLDivElement>(root?.file, 'flowScroll');
     const selectedId = useSessionStore((state) => state.selectedId);
     const select = useSessionStore((state) => state.select);
     const selectAgent = useSessionStore((state) => state.selectAgent);
@@ -81,7 +83,7 @@ export function FlowView() {
     };
 
     return (
-        <div className="h-full overflow-auto" style={{ background: palette.background }}>
+        <div {...scroll} className="h-full overflow-auto" style={{ background: palette.background }}>
             <div className="sticky top-0 z-10 flex border-b backdrop-blur" style={{ width: layout.width, paddingLeft: SIDE_PADDING, gap: COLUMN_GAP, background: `${palette.background}e6` }}>
                 {flow.lanes.map(({ session, depth }) => (
                     <button

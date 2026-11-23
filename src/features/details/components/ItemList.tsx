@@ -3,7 +3,7 @@ import { useSessionStore } from '@/features/session-tree/store/sessionStore';
 import { cn } from '@/lib/utils';
 import type { ActivityItem } from '../../../../server/activity';
 
-/** Compact list of activity items; clicking one opens it in the details tool. */
+/** Compact list of activity items; clicking one opens it in the details panel. */
 export function ItemList({ items, sessionId, startedAt, nameOf }: { items: ActivityItem[]; sessionId: string; startedAt: number; nameOf: NameOf }) {
     const select = useSessionStore((state) => state.select);
     return (

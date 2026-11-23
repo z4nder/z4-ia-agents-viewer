@@ -11,6 +11,7 @@ import { buildActivity, summarizeActivity, type ActivityItem } from '../../../..
 import type { Session } from '../../../../server/model';
 import { groupSkillReading } from '../../../../server/skills';
 import { formatClock, ICONS, isRawCommand, ItemBadges, rowTitle, type NameOf } from '../itemPresentation';
+import { useRememberedScroll, useSessionViewState } from '@/features/workspace/useSessionViewState';
 
 type Filter = 'all' | 'messages' | 'agents' | 'commands' | 'mcp' | 'skills' | 'failures' | 'context';
 
@@ -103,7 +104,7 @@ function ActivityRow({ item, startedAt, isSelected, nameOf, onSelect, onOpenChil
     );
 }
 
-/** What the selected agent did, in order; clicking an item shows all of it in the details tool. */
+/** What the selected agent did, in order; clicking an item shows it in the right-hand details panel. */
 export function ActivityFeed() {
     const root = useSessionStore((state) => state.root);
     const selectedId = useSessionStore((state) => state.selectedId);
@@ -111,8 +112,9 @@ export function ActivityFeed() {
     const selectAgent = useSessionStore((state) => state.selectAgent);
     const selectedItemId = useSessionStore((state) => (state.selection?.type === 'item' ? state.selection.item.id : null));
     const session = findSession(root, selectedId) ?? root;
-    const [filter, setFilter] = useState<Filter>('all');
-    const [groupsReading, setGroupsReading] = useState(true);
+    const [filter, setFilter] = useSessionViewState<Filter>(root?.file, 'activityFilter', 'all', (value): value is Filter => FILTERS.some(([key]) => key === value));
+    const [groupsReading, setGroupsReading] = useSessionViewState(root?.file, 'activityGrouped', true, (value): value is boolean => typeof value === 'boolean');
+    const scroll = useRememberedScroll<HTMLOListElement>(root?.file, 'activityScroll', selectedId ?? '');
     const activity = useMemo(() => {
         const items = session ? buildActivity(session) : [];
         return groupsReading ? groupSkillReading(items) : items;
@@ -175,7 +177,7 @@ export function ActivityFeed() {
                     <SummaryBlock label="Terminou dizendo" text={summary.result} />
                 </div>
             </div>
-            <ol className="min-h-0 flex-1 overflow-y-auto">
+            <ol {...scroll} className="min-h-0 flex-1 overflow-y-auto">
                 {visible.map((item) => (
                     <ActivityRow
                         key={item.id}

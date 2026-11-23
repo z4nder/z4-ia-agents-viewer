@@ -1,75 +1,69 @@
-import { StrictMode, useEffect } from 'react';
+import { LoaderCircle } from 'lucide-react';
+import { StrictMode, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ActivityFeed } from '@/features/activity/components/ActivityFeed';
 import { FlowView } from '@/features/flow/components/FlowView';
 import { SessionTree } from '@/features/session-tree/components/SessionTree';
+import { readSessionNavigation, SESSION_VIEWS } from '@/features/session-tree/store/sessionNavigation';
 import { useSessionStore } from '@/features/session-tree/store/sessionStore';
 import { Timeline } from '@/features/timeline/components/Timeline';
-import { Toolbox } from '@/features/toolbox/components/Toolbox';
-import { useViewShortcuts, VIEWS } from '@/features/toolbox/components/ViewsPanel';
-import { TOOL_LABELS } from '@/lib/toolColors';
+import { useViewShortcuts, VIEWS } from '@/features/workspace/components/ViewSwitcher';
+import { Workspace, WorkspaceEmptyState } from '@/features/workspace/components/Workspace';
+import { TOOL_BADGE_CLASSES, TOOL_LABELS } from '@/lib/toolColors';
+import { cn } from '@/lib/utils';
 import './index.css';
 
 const startFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeStyle: 'short' });
 
 function App() {
-    const view = useSessionStore((state) => state.view);
-    const setView = useSessionStore((state) => state.setView);
-    const error = useSessionStore((state) => state.error);
-    const root = useSessionStore((state) => state.root);
+    const { view, setView, error, root, isLoading, load, selectAgent } = useSessionStore();
+    const restored = useRef(false);
     useViewShortcuts();
 
     useEffect(() => {
-        // Deep link: ?file=<session .jsonl>&view=tree|timeline|flow|activity&agent=<session id>
+        if (restored.current) return;
+        restored.current = true;
         const params = new URLSearchParams(window.location.search);
-        const file = params.get('file');
+        const saved = readSessionNavigation();
+        const explicitFile = params.get('file');
+        const file = explicitFile ?? saved.file;
         const agent = params.get('agent');
+        const initialView = VIEWS.find((candidate) => candidate.view === params.get('view'))?.view ?? saved.view;
+        setView(initialView);
         if (file) {
-            void useSessionStore
-                .getState()
-                .load(file)
-                .then(() => agent && useSessionStore.getState().selectAgent(agent, false));
+            void load(file, explicitFile ? null : saved.selection).then(() => {
+                if (agent && useSessionStore.getState().root?.file === file) selectAgent(agent, false);
+            });
         }
-        const initialView = VIEWS.find((candidate) => candidate.view === params.get('view'))?.view;
-        if (initialView) {
-            setView(initialView);
-        }
-    }, [setView]);
-
-    const currentView = VIEWS.find((candidate) => candidate.view === view)!;
+    }, [load, selectAgent, setView]);
 
     return (
-        <div className="flex h-full">
-            <Toolbox />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-                    <currentView.icon className="size-4 shrink-0 text-muted-foreground" aria-label={currentView.label} />
-                    <div className="min-w-0 flex-1 truncate text-sm">
-                        <span className="font-semibold">{root ? (root.title ?? 'Sessão sem título') : 'Sessões de agentes'}</span>
-                        {root && (
-                            <span className="ml-2 text-muted-foreground">
-                                {[TOOL_LABELS[root.tool], root.cwd?.split('/').at(-1), root.startedAt && startFormat.format(new Date(root.startedAt))].filter(Boolean).join(', ')}
-                            </span>
-                        )}
+        <Tabs value={view} onValueChange={(value) => { if (SESSION_VIEWS.includes(value as typeof view)) setView(value as typeof view); }}
+            className="h-dvh min-h-0 flex-col gap-0! overflow-hidden">
+            <Workspace>
+                <div className="flex h-12 shrink-0 items-center gap-2.5 border-b px-4">
+                    {root && <Badge variant="secondary" className={cn('shrink-0 border-0 text-[10px]', TOOL_BADGE_CLASSES[root.tool])}>{TOOL_LABELS[root.tool]}</Badge>}
+                    <div className="min-w-0 flex-1">
+                        <h1 className="truncate text-xs font-medium" title={root?.title ?? undefined}>{root ? root.title || 'Sessão sem título' : 'Área de trabalho'}</h1>
+                        {root && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{[root.cwd?.split('/').at(-1), root.startedAt && startFormat.format(new Date(root.startedAt))].filter(Boolean).join(' · ')}</p>}
                     </div>
-                </header>
-                {error && <p className="bg-destructive/10 px-4 py-2 text-sm text-destructive">{error}</p>}
+                    {isLoading && <LoaderCircle className="size-3.5 animate-spin text-muted-foreground motion-reduce:animate-none" aria-label="Carregando sessão" />}
+                </div>
+                {error && <p role="alert" className="border-b bg-destructive/5 px-4 py-3 text-xs text-destructive">{error}</p>}
                 <main className="min-h-0 flex-1">
-                    {view === 'tree' && <SessionTree />}
-                    {view === 'timeline' && <Timeline />}
-                    {view === 'flow' && <FlowView />}
-                    {view === 'activity' && <ActivityFeed />}
+                    {root ? <>
+                        <TabsContent key={`tree:${root.file}`} value="tree" className="h-full min-h-0"><SessionTree /></TabsContent>
+                        <TabsContent key={`timeline:${root.file}`} value="timeline" className="h-full min-h-0"><Timeline /></TabsContent>
+                        <TabsContent key={`flow:${root.file}`} value="flow" className="h-full min-h-0"><FlowView /></TabsContent>
+                        <TabsContent key={`activity:${root.file}`} value="activity" className="h-full min-h-0"><ActivityFeed /></TabsContent>
+                    </> : isLoading ? <p role="status" className="flex h-full items-center justify-center text-sm text-muted-foreground">Restaurando sessão…</p> : <WorkspaceEmptyState />}
                 </main>
-            </div>
-        </div>
+            </Workspace>
+        </Tabs>
     );
 }
 
-createRoot(document.getElementById('app')!).render(
-    <StrictMode>
-        <TooltipProvider>
-            <App />
-        </TooltipProvider>
-    </StrictMode>,
-);
+createRoot(document.getElementById('app')!).render(<StrictMode><TooltipProvider><App /></TooltipProvider></StrictMode>);
